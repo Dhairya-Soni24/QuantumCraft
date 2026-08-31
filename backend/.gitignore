@@ -1,0 +1,10 @@
+# Secret Environment Variables
+.env
+backend/.env
+*.env
+
+# Python compilation files & virtual environments
+__pycache__/
+*.pyc
+venv/
+.venv/

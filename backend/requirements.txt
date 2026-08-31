@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+supabase
+sqlmodel
+google-generativeai
+openai
+python-jose[cryptography]
+passlib[bcrypt]
+python-dotenv
+pydantic
+pydantic-settings
