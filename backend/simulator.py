@@ -27,6 +27,16 @@ class SimulationRequest(BaseModel):
     shots: int = 1024
 
 
+# Target requirements mapping for input validation
+REQUIRED_TARGETS = {
+    "h": 1, "x": 1, "y": 1, "z": 1,
+    "s": 1, "sdg": 1, "t": 1, "tdg": 1,
+    "p": 1, "phase": 1, "rx": 1, "ry": 1, "rz": 1,
+    "cx": 2, "cnot": 2, "cz": 2, "swap": 2,
+    "ccx": 3, "toffoli": 3
+}
+
+
 def calculate_bloch_coordinates(state_vector: Statevector, num_qubits: int) -> List[Dict[str, Any]]:
     bloch_vectors = []
     for q in range(num_qubits):
@@ -59,6 +69,10 @@ def calculate_bloch_coordinates(state_vector: Statevector, num_qubits: int) -> L
 def run_qiskit_simulation(req: SimulationRequest) -> Dict[str, Any]:
     start_time = time.time()
     
+    # Pre-simulation boundary validation
+    if req.qubit_count <= 0:
+        raise ValueError("qubit_count must be a positive integer.")
+
     if not QISKIT_AVAILABLE:
         mock_counts = {"00": req.shots // 2, "11": req.shots // 2} if req.qubit_count > 1 else {"0": req.shots}
         mock_state = [[0.707106, 0.0] for _ in range(2**req.qubit_count)]
@@ -80,6 +94,21 @@ def run_qiskit_simulation(req: SimulationRequest) -> Dict[str, Any]:
         t = gate_inst.targets
         p = gate_inst.params
         
+        # 1. Qubit bounds check
+        for qubit_idx in t:
+            if qubit_idx < 0 or qubit_idx >= req.qubit_count:
+                raise ValueError(
+                    f"Target qubit index {qubit_idx} is out of bounds for circuit with {req.qubit_count} qubits (0-{req.qubit_count - 1})."
+                )
+
+        # 2. Target count check
+        expected_targets = REQUIRED_TARGETS.get(gname)
+        if expected_targets and len(t) != expected_targets:
+            raise ValueError(
+                f"Gate '{gate_inst.gate}' requires exactly {expected_targets} target qubit(s), but got {len(t)}."
+            )
+
+        # 3. Expanded gate mapping
         if gname == "h":
             qc.h(t[0])
         elif gname == "x":
@@ -88,10 +117,22 @@ def run_qiskit_simulation(req: SimulationRequest) -> Dict[str, Any]:
             qc.y(t[0])
         elif gname == "z":
             qc.z(t[0])
+        elif gname == "s":
+            qc.s(t[0])
+        elif gname == "sdg":
+            qc.sdg(t[0])
+        elif gname == "t":
+            qc.t(t[0])
+        elif gname == "tdg":
+            qc.tdg(t[0])
         elif gname in ["cx", "cnot"]:
             qc.cx(t[0], t[1])
         elif gname == "cz":
             qc.cz(t[0], t[1])
+        elif gname == "swap":
+            qc.swap(t[0], t[1])
+        elif gname in ["ccx", "toffoli"]:
+            qc.ccx(t[0], t[1], t[2])
         elif gname in ["p", "phase"]:
             theta = p[0] if p and len(p) > 0 else 0.0
             qc.p(theta, t[0])
@@ -104,12 +145,19 @@ def run_qiskit_simulation(req: SimulationRequest) -> Dict[str, Any]:
         elif gname == "rz":
             theta = p[0] if p and len(p) > 0 else 0.0
             qc.rz(theta, t[0])
+        else:
+            raise ValueError(f"Unsupported quantum gate type: '{gate_inst.gate}'.")
 
     for gate_inst in req.circuit_ast:
         gname = gate_inst.gate.lower()
         if gname == "measure":
+            if not gate_inst.targets:
+                raise ValueError("Measurement gate requires at least one target qubit.")
+            target_qubit = gate_inst.targets[0]
+            if target_qubit < 0 or target_qubit >= req.qubit_count:
+                raise ValueError(f"Measurement target qubit {target_qubit} is out of bounds.")
+            
             if count_qc:
-                target_qubit = gate_inst.targets[0]
                 creg_idx = gate_inst.classical_reg if gate_inst.classical_reg is not None else target_qubit
                 count_qc.measure(target_qubit, creg_idx)
         else:

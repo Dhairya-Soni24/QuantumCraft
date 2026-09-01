@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from backend.config import settings
-from backend.supabase_client import supabase
+from backend.supabase_client import get_supabase
 
 # Import APIRouters
 from backend.routers.simulation_router import router as simulation_router
@@ -13,7 +13,6 @@ app = FastAPI(
     version="1.0.0",
     description="Backend service for QuantumCraft: AI-based Quantum Learning Platform"
 )
-
 
 # Enable CORS for Frontend communication
 app.add_middleware(
@@ -41,7 +40,7 @@ def read_root():
 def health_check():
     """Verify backend and Supabase connection health."""
     try:
-        # Simple query test against public table
+        supabase = get_supabase()
         response = supabase.table("courses").select("id").limit(1).execute()
         return {"backend": "healthy", "database": "connected"}
     except Exception as e:

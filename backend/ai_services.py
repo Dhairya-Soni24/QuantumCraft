@@ -1,6 +1,6 @@
 import json
 import google.generativeai as genai
-from config import settings
+from backend.config import settings
 
 # Configure Gemini Client
 if settings.GEMINI_API_KEY:
