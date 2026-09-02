@@ -1,234 +1,208 @@
-# 🌌 QuantumCraft (IQ-ALP) - Important Quantum Theory & Mathematical Foundations
+# 🌌 QuantumCraft (IQ-ALP) - Easy Quantum Computing Theory & Guide
 
-This document serves as the master theoretical reference for the **QuantumCraft** platform, covering foundational principles, mathematical formalisms, quantum gates, canonical algorithms, and the quantum software ecosystem.
+> **💡 Note:** This guide explains quantum computing in **simple, plain English** using real-world analogies (coins, light switches, and connected dice) without confusing math symbols!
 
 ---
 
 ## 📑 Table of Contents
-1. [Fundamental Quantum Principles](#1-fundamental-quantum-principles)
-2. [Mathematical Formulations](#2-mathematical-formulations)
-3. [Quantum Gate Mechanics & Matrix Library](#3-quantum-gate-mechanics--matrix-library)
-4. [Canonical Quantum Circuits & Algorithms](#4-canonical-quantum-circuits--algorithms)
-5. [Quantum Software & Simulation Architecture](#5-quantum-software--simulation-architecture)
-6. [Comprehensive Quantum Terminology Glossary](#6-comprehensive-quantum-terminology-glossary)
+1. [Simple Quantum Concepts Explained](#1-simple-quantum-concepts-explained)
+2. [Translating Quantum Symbols into Plain English](#2-translating-quantum-symbols-into-plain-english)
+3. [Quantum Gates Explained (What Each Gate Does)](#3-quantum-gates-explained-what-each-gate-does)
+4. [Main Quantum Circuits & Algorithms (In Simple Words)](#4-main-quantum-circuits--algorithms-in-simple-words)
+5. [The Bloch Sphere (The 3D Quantum Globe)](#5-the-bloch-sphere-the-3d-quantum-globe)
+6. [Quantum Libraries & Tools in this Project](#6-quantum-libraries--tools-in-this-project)
+7. [Quick Glossary (Dictionary of Terms)](#7-quick-glossary-dictionary-of-terms)
 
 ---
 
-## 1. Fundamental Quantum Principles
+## 1. Simple Quantum Concepts Explained
 
-### 1.1 The Qubit
-Unlike a classical bit that exists deterministically as either `0` or `1`, a **qubit** (quantum bit) is a two-level quantum mechanical system represented as a unit vector in a 2-dimensional complex Hilbert space $\mathcal{H}_2$.
-
-### 1.2 Quantum Superposition
-A pure qubit state $|\psi\rangle$ is expressed as a linear combination of orthonormal computational basis states $|0\rangle$ and $|1\rangle$:
-
-$$|\psi\rangle = \alpha|0\rangle + \beta|1\rangle = \begin{pmatrix} \alpha \\ \beta \end{pmatrix}$$
-
-where $\alpha, \beta \in \mathbb{C}$ are complex probability amplitudes satisfying the normalization condition:
-
-$$\|\alpha\|^2 + \|\beta\|^2 = 1$$
-
-### 1.3 The Born Rule & Wavefunction Collapse
-Upon measurement in the computational basis $\{|0\rangle, |1\rangle\}$, the continuous superposition collapses instantaneously into a definite state:
-* Probability of measuring outcome $0$: $P(0) = \|\alpha\|^2 = |\langle 0|\psi\rangle|^2$
-* Probability of measuring outcome $1$: $P(1) = \|\beta\|^2 = |\langle 1|\psi\rangle|^2$
-
-### 1.4 Quantum Entanglement
-When two or more qubits interact, they can enter an **entangled state** where the composite quantum state $|\psi_{AB}\rangle$ cannot be factored into product states of individual qubits ($|\psi_{AB}\rangle \neq |\psi_A\rangle \otimes |\psi_B\rangle$).
-* Measuring one qubit instantly determines the outcome of the other, regardless of spatial separation (Einstein-Podolsky-Rosen paradox).
-
-### 1.5 Phase Kickback
-A core quantum algorithmic primitive where applying a controlled gate to a target qubit in an eigenstate causes the eigenvalue phase factor $e^{i\theta}$ to be transferred ("kicked back") into the phase of the control qubit.
+### 🪙 1.1 Classical Bit vs. Quantum Qubit
+* **Classical Bit (Normal Computer):** Like a regular light switch — it is either strictly **OFF (0)** or **ON (1)**.
+* **Qubit (Quantum Computer):** Like a **spinning coin** on a table. While it is spinning, it is not just Heads (0) or Tails (1) — it is a mixture of **both at the same time**!
 
 ---
 
-## 2. Mathematical Formulations
-
-### 2.1 Dirac Bra-Ket Notation
-* **Ket** $|\psi\rangle$: Column vector representing a quantum state.
-* **Bra** $\langle\psi| = (|\psi\rangle)^\dagger$: Conjugate transpose (row vector) of $|\psi\rangle$.
-* **Inner Product** $\langle\phi|\psi\rangle$: Scalar product representing state overlap / probability amplitude.
-* **Outer Product** $|\psi\rangle\langle\phi|$: Linear operator (projection matrix).
-
-### 2.2 Tensor Product for Multi-Qubit Systems
-The state space of an $n$-qubit composite system is the tensor product of single-qubit spaces $\mathcal{H}_{2^n} = \mathcal{H}_2^{\otimes n}$:
-
-$$|q_0\rangle \otimes |q_1\rangle = |q_0 q_1\rangle = \begin{pmatrix} \alpha_0 \begin{pmatrix} \alpha_1 \\ \beta_1 \end{pmatrix} \\ \beta_0 \begin{pmatrix} \alpha_1 \\ \beta_1 \end{pmatrix} \end{pmatrix} = \begin{pmatrix} \alpha_0\alpha_1 \\ \alpha_0\beta_1 \\ \beta_0\alpha_1 \\ \beta_0\beta_1 \end{pmatrix}$$
-
-### 2.3 The Bloch Sphere Representation
-Any single-qubit pure state can be geometrically visualized on the surface of a unit 3D sphere parameterized by spherical angles $\theta \in [0, \pi]$ (polar) and $\phi \in [0, 2\pi)$ (azimuthal):
-
-$$|\psi\rangle = \cos\left(\frac{\theta}{2}\right)|0\rangle + e^{i\phi}\sin\left(\frac{\theta}{2}\right)|1\rangle$$
-
-The Cartesian coordinates $(r_x, r_y, r_z)$ on the Bloch sphere are calculated using Pauli expectation values:
-* $r_x = \langle\psi|\sigma_x|\psi\rangle = \sin\theta\cos\phi = 2\text{Re}(\alpha^*\beta)$
-* $r_y = \langle\psi|\sigma_y|\psi\rangle = \sin\theta\sin\phi = 2\text{Im}(\alpha^*\beta)$
-* $r_z = \langle\psi|\sigma_z|\psi\rangle = \cos\theta = \|\alpha\|^2 - \|\beta\|^2$
-
-### 2.4 Density Matrix & Partial Trace
-For mixed states or subsystems of entangled qubits:
-* **Density Matrix**: $\rho = \sum_i p_i |\psi_i\rangle\langle\psi_i|$, with $\text{Tr}(\rho) = 1$ and $\rho = \rho^\dagger \ge 0$.
-* **Reduced Density Matrix (Partial Trace)**: For a 2-qubit system $\rho_{AB}$, tracing out qubit $B$ yields qubit $A$'s local state:
-  $$\rho_A = \text{Tr}_B(\rho_{AB})$$
+### 🌀 1.2 Superposition (The Spinning Coin)
+* **What is it?** When a qubit is placed in a state where it has a chance of becoming `0` and a chance of becoming `1`.
+* **Analogy:** Imagine a coin resting flat on a table. It is either 0 or 1. But when you flick it and it spins rapidly, it has a 50% chance of landing on Heads (0) and 50% chance on Tails (1). That spinning state is **Superposition**.
 
 ---
 
-## 3. Quantum Gate Mechanics & Matrix Library
-
-All quantum gates are represented by **Unitary Operators** $U$ where $U^\dagger U = U U^\dagger = I$, ensuring probability conservation.
-
-### 3.1 Single-Qubit Standard Gates
-
-#### 1. Hadamard Gate ($H$)
-Transforms computational basis states into balanced superposition states:
-$$H = \frac{1}{\sqrt{2}}\begin{pmatrix} 1 & 1 \\ 1 & -1 \end{pmatrix}, \quad H|0\rangle = |+\rangle = \frac{|0\rangle+|1\rangle}{\sqrt{2}}, \quad H|1\rangle = |-\rangle = \frac{|0\rangle-|1\rangle}{\sqrt{2}}$$
-
-#### 2. Pauli-X Gate ($X$ / Quantum NOT)
-Performs a $180^\circ$ rotation about the X-axis (bit flip):
-$$X = \begin{pmatrix} 0 & 1 \\ 1 & 0 \end{pmatrix}, \quad X|0\rangle = |1\rangle, \quad X|1\rangle = |0\rangle$$
-
-#### 3. Pauli-Y Gate ($Y$)
-Performs a $180^\circ$ rotation about the Y-axis (bit & phase flip):
-$$Y = \begin{pmatrix} 0 & -i \\ i & 0 \end{pmatrix}, \quad Y|0\rangle = i|1\rangle, \quad Y|1\rangle = -i|0\rangle$$
-
-#### 4. Pauli-Z Gate ($Z$)
-Performs a $180^\circ$ rotation about the Z-axis (phase flip):
-$$Z = \begin{pmatrix} 1 & 0 \\ 0 & -1 \end{pmatrix}, \quad Z|0\rangle = |0\rangle, \quad Z|1\rangle = -|1\rangle$$
-
-#### 5. Phase Gate ($S$) & S-Dagger ($S^\dagger$)
-Applies a $\pi/2$ phase shift ($S^2 = Z$):
-$$S = \begin{pmatrix} 1 & 0 \\ 0 & i \end{pmatrix}, \quad S^\dagger = \begin{pmatrix} 1 & 0 \\ 0 & -i \end{pmatrix}$$
-
-#### 6. $\pi/8$ Gate ($T$) & T-Dagger ($T^\dagger$)
-Applies a $\pi/4$ phase shift ($T^2 = S$):
-$$T = \begin{pmatrix} 1 & 0 \\ 0 & e^{i\pi/4} \end{pmatrix}, \quad T^\dagger = \begin{pmatrix} 1 & 0 \\ 0 & e^{-i\pi/4} \end{pmatrix}$$
+### 👁️ 1.3 Measurement & Collapse (Stopping the Spinning Coin)
+* **What happens when you look at a qubit?** You cannot look at a spinning coin without touching it.
+* When you touch (measure) the spinning coin, it is forced to **stop and land flat** on either 0 or 1.
+* In quantum physics, looking at a qubit forces it to choose a single definite value (0 or 1). This is called **Wavefunction Collapse**.
 
 ---
 
-### 3.2 Single-Qubit Parametric Rotation Gates
-
-* **Rotation-X ($R_x(\theta)$)**:
-  $$R_x(\theta) = \exp\left(-i\frac{\theta}{2}X\right) = \begin{pmatrix} \cos\frac{\theta}{2} & -i\sin\frac{\theta}{2} \\ -i\sin\frac{\theta}{2} & \cos\frac{\theta}{2} \end{pmatrix}$$
-* **Rotation-Y ($R_y(\theta)$)**:
-  $$R_y(\theta) = \exp\left(-i\frac{\theta}{2}Y\right) = \begin{pmatrix} \cos\frac{\theta}{2} & -\sin\frac{\theta}{2} \\ \sin\frac{\theta}{2} & \cos\frac{\theta}{2} \end{pmatrix}$$
-* **Rotation-Z ($R_z(\phi)$)**:
-  $$R_z(\phi) = \exp\left(-i\frac{\phi}{2}Z\right) = \begin{pmatrix} e^{-i\phi/2} & 0 \\ 0 & e^{i\phi/2} \end{pmatrix}$$
-* **Phase-Shift Gate ($P(\lambda)$)**:
-  $$P(\lambda) = \begin{pmatrix} 1 & 0 \\ 0 & e^{i\lambda} \end{pmatrix}$$
+### 🎲 1.4 Entanglement (Magic Connected Dice)
+* **What is it?** A mysterious connection between two or more qubits.
+* **Analogy:** Imagine you have two magical dice — one is in your hand, and the other is with your friend on the Moon. 
+* Normally, rolling a die gives a random number. But with **entangled dice**, if you roll a `6`, your friend's die will **instantly show a `6`** at the exact same moment!
+* In quantum computers, when two qubits are entangled, knowing the value of one qubit instantly tells you the value of the other qubit, no matter how far apart they are.
 
 ---
 
-### 3.3 Multi-Qubit & Entangling Gates
-
-#### 1. Controlled-NOT Gate ($CX$ / $CNOT$)
-Flips the target qubit $q_1$ if and only if the control qubit $q_0$ is $|1\rangle$:
-$$CX = \begin{pmatrix} 1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 0 & 1 \\ 0 & 0 & 1 & 0 \end{pmatrix}, \quad CX|c, t\rangle = |c, c \oplus t\rangle$$
-
-#### 2. Controlled-Z Gate ($CZ$)
-Applies a $Z$ phase flip if both qubits are in state $|1\rangle$:
-$$CZ = \begin{pmatrix} 1 & 0 & 0 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 1 & 0 \\ 0 & 0 & 0 & -1 \end{pmatrix}$$
-
-#### 3. SWAP Gate
-Exchanges the state vectors of two qubits:
-$$SWAP = \begin{pmatrix} 1 & 0 & 0 & 0 \\ 0 & 0 & 1 & 0 \\ 0 & 1 & 0 & 0 \\ 0 & 0 & 0 & 1 \end{pmatrix}, \quad SWAP|a, b\rangle = |b, a\rangle$$
-
-#### 4. Toffoli Gate ($CCX$ / Controlled-Controlled-NOT)
-A universal 3-qubit reversible logic gate that flips target qubit $q_2$ iff both control qubits $q_0, q_1$ are $|1\rangle$:
-$$CCX|c_1, c_2, t\rangle = |c_1, c_2, t \oplus (c_1 \cdot c_2)\rangle$$
+### 🔄 1.5 Phase Kickback (The Trampoline Effect)
+* **What is it?** When two qubits interact through a conditional gate, sometimes the effect or angle bounces back and changes the first (controlling) qubit instead of the target qubit!
+* It is like jumping on a trampoline with a friend — pushing down on your friend causes energy to kick back and bounce you higher.
 
 ---
 
-## 4. Canonical Quantum Circuits & Algorithms
+## 2. Translating Quantum Symbols into Plain English
 
-### 4.1 Bell State Generation (EPR Pairs)
-The 4 maximally entangled 2-qubit Bell states are generated using a Hadamard followed by a CNOT:
+When physicists write quantum equations, they use special brackets called **Dirac Notation**. Here is what they actually mean:
 
-| Bell State | Mathematical Formula | Circuit Generation Sequence |
+| Physics Symbol | What it is Called | What it Actually Means in Plain English |
 |:---:|:---:|---|
-| $|\Phi^+\rangle$ | $\frac{\|00\rangle + \|11\rangle}{\sqrt{2}}$ | $H(q_0) \rightarrow CX(q_0, q_1)$ |
-| $|\Phi^-\rangle$ | $\frac{\|00\rangle - \|11\rangle}{\sqrt{2}}$ | $X(q_0) \rightarrow H(q_0) \rightarrow CX(q_0, q_1)$ |
-| $|\Psi^+\rangle$ | $\frac{\|01\rangle + \|10\rangle}{\sqrt{2}}$ | $X(q_1) \rightarrow H(q_0) \rightarrow CX(q_0, q_1)$ |
-| $|\Psi^-\rangle$ | $\frac{\|01\rangle - \|10\rangle}{\sqrt{2}}$ | $X(q_0) \rightarrow X(q_1) \rightarrow H(q_0) \rightarrow CX(q_0, q_1)$ |
+| `|0⟩` | "Ket Zero" | The qubit is in state **0** (like OFF / Heads). |
+| `|1⟩` | "Ket One" | The qubit is in state **1** (like ON / Tails). |
+| `|ψ⟩` | "Ket Psi" | Just a name for the **current state of a qubit** (like saying "variable X"). |
+| `|+⟩` | "Plus State" | A 50/50 equal mixture of `|0⟩` and `|1⟩` (created by the Hadamard gate). |
+| `|-⟩` | "Minus State" | A 50/50 mixture of `|0⟩` and `|1⟩`, but with a negative phase angle. |
+| `|00⟩` | "Two-Qubit State" | Qubit 0 is at `0`, and Qubit 1 is at `0`. |
+| `|11⟩` | "Two-Qubit State" | Qubit 0 is at `1`, and Qubit 1 is at `1`. |
+| `(|00⟩ + |11⟩) / √2` | "Bell State" | Two entangled qubits that will always give the exact same outcome (both 0 or both 1). |
 
 ---
 
-### 4.2 Deutsch-Jozsa Algorithm
-* **Problem**: Determine whether an unknown boolean oracle function $f: \{0, 1\}^n \rightarrow \{0, 1\}$ is **constant** (returns all 0s or all 1s) or **balanced** (returns 0 for half of inputs and 1 for the other half).
-* **Quantum Speedup**: Solves in **1 single query** ($O(1)$) compared to classical deterministic algorithms requiring $2^{n-1} + 1$ queries ($O(2^n)$).
-* **Key Mechanism**: Phase kickback via $|-\rangle = \frac{|0\rangle - |1\rangle}{\sqrt{2}}$ ancilla qubit, followed by destructive interference on balanced functions.
+## 3. Quantum Gates Explained (What Each Gate Does)
+
+Quantum gates are the **operations / tools** you place on the quantum wires to change the state of qubits.
+
+```
+       [ H ]            [ X ]            [ CX ]
+  (Coin Spinner)    (Switch Flip)    (If-Then Link)
+```
 
 ---
 
-### 4.3 Grover's Search Algorithm
-* **Problem**: Find a marked item $x^*$ in an unsorted database of $N = 2^n$ elements.
-* **Quantum Speedup**: $\mathcal{O}(\sqrt{N})$ quantum queries vs. classical $\mathcal{O}(N)$ brute-force search.
-* **Algorithm Steps**:
-  1. Initialize uniform superposition: $|\psi_0\rangle = H^{\otimes n}|0\rangle^{\otimes n} = \frac{1}{\sqrt{N}}\sum_{x=0}^{N-1}|x\rangle$.
-  2. **Phase Oracle $U_f$**: Inverts the sign of target state: $U_f|x\rangle = (-1)^{f(x)}|x\rangle$.
-  3. **Grover Diffusion Operator $D$**: Inversion about the mean:
-     $$D = 2|\psi_0\rangle\langle\psi_0| - I = H^{\otimes n}(2|0\rangle\langle 0| - I)H^{\otimes n}$$
-  4. Repeat $\approx \frac{\pi}{4}\sqrt{N}$ iterations before measuring.
+### 🔹 Single-Qubit Gates (Affects 1 Qubit)
+
+| Gate | Name | What it Does (Simple Explanation) | Real-World Analogy |
+|:---:|:---:|---|---|
+| **`H`** | **Hadamard** | Takes a solid `0` or `1` and turns it into a **50/50 superposition**. | Sets a coin spinning on the table. |
+| **`X`** | **Pauli-X (NOT)** | Flips `0` to `1`, and `1` to `0`. | Light switch flip (turn ON/OFF). |
+| **`Y`** | **Pauli-Y** | Flips the bit (0 ↔ 1) and also adds a 90° phase twist. | Flip the coin and twist it sideways. |
+| **`Z`** | **Pauli-Z** | Leaves `0` alone, but changes the sign/phase of `1`. | Flips the direction of the spin without changing the chance of 0 or 1. |
+| **`S`** | **Phase Gate** | Rotates the phase of the qubit by a quarter turn (90 degrees). | Turning a dial 1/4th of the way. |
+| **`T`** | **Pi/8 Gate** | Rotates the phase of the qubit by an eighth of a turn (45 degrees). | Turning a dial 1/8th of the way. |
+| **`RX` / `RY` / `RZ`** | **Rotations** | Rotates the qubit around the X, Y, or Z axis by any custom angle $\theta$. | Tilting the spinning coin to any custom angle. |
 
 ---
 
-### 4.4 Quantum Teleportation Protocol
-* **Purpose**: Teleports an unknown quantum state $|\psi\rangle = \alpha|0\rangle + \beta|1\rangle$ from Alice to Bob using an entangled Bell pair and 2 classical bits.
-* **Steps**:
-  1. Create shared Bell state between Alice ($q_1$) and Bob ($q_2$): $\frac{|00\rangle + |11\rangle}{\sqrt{2}}$.
-  2. Alice performs Bell-basis measurement: applies $CX(q_0, q_1)$ and $H(q_0)$ on her message qubit $q_0$ and entangled qubit $q_1$.
-  3. Alice measures $q_0, q_1$ and transmits 2 classical bits $(m_0, m_1)$ to Bob.
-  4. Bob reconstructs $|\psi\rangle$ on $q_2$ by applying conditional Pauli corrections:
-     $$|\psi_{\text{out}}\rangle = Z^{m_0} X^{m_1}|q_2\rangle$$
+### 🔹 Multi-Qubit Gates (Affects 2 or 3 Qubits)
+
+| Gate | Name | What it Does (Simple Explanation) | Real-World Analogy |
+|:---:|:---:|---|---|
+| **`CX` / `CNOT`** | **Controlled-NOT** | If Qubit 0 is **1**, it flips Qubit 1. If Qubit 0 is **0**, it does nothing. | **"If-Then" logic switch**: If the alarm rings (1), turn on the siren (flip). |
+| **`CZ`** | **Controlled-Z** | If both qubits are **1**, it flips their phase. | Adds a tag only when both conditions are met. |
+| **`SWAP`** | **Swap Gate** | Trades the states of two qubits (Qubit 0 takes Qubit 1's state, and vice-versa). | Trading your card with a friend. |
+| **`CCX` / `Toffoli`** | **Toffoli Gate** | If **both** Qubit 0 AND Qubit 1 are **1**, it flips Qubit 2. | A bank vault needing **two keys** turned at once to open the door. |
 
 ---
 
-### 4.5 Quantum Fourier Transform (QFT)
-* **Definition**: Maps computational basis states into frequency phase basis:
-  $$|j\rangle \mapsto \frac{1}{\sqrt{2^n}}\sum_{k=0}^{2^n-1} e^{2\pi i j k / 2^n}|k\rangle$$
-* **Significance**: Foundational sub-routine for Shor's Period Finding & Factoring Algorithm, Quantum Phase Estimation (QPE), and HHL algorithm for linear systems.
+### 🔹 Measurement (`M`)
+* **What it does:** Reads the final outcome of a qubit and converts quantum information into standard classical numbers (`0` or `1`).
+* When you run 1024 shots (simulations), it tells you what percentage came out as `0` and what percentage came out as `1`.
 
 ---
 
-## 5. Quantum Software & Simulation Architecture
-
-### 5.1 Qiskit (IBM Quantum)
-* Used as the primary quantum circuit compiler and simulation backend in `backend/simulator.py`.
-* Converts AST JSON into `qiskit.QuantumCircuit` objects for exact statevector evolution and shot-based sampling with `qiskit-aer`.
-
-### 5.2 Cirq (Google Quantum AI)
-* Supports grid-based quantum devices and hardware compilation with `cirq.Circuit` and `cirq.LineQubit`.
-
-### 5.3 PennyLane (Xanadu)
-* Differentiable quantum programming engine for Variational Quantum Algorithms (VQE, QAOA) and Quantum Machine Learning.
-
-### 5.4 AI Quantum Tutor Engine (Gemini `gemini-3.6-flash`)
-* Leverages active circuit AST context, gate histories, and measurement outcomes to provide personalized Dirac-notation explanations, step-by-step mathematical derivations, and progressive challenge hints via real-time Server-Sent Events (SSE).
+## 4. Main Quantum Circuits & Algorithms (In Simple Words)
 
 ---
 
-## 6. Comprehensive Quantum Terminology Glossary
+### 1. 🔔 The Bell State (The Entanglement Creator)
+* **What does it do?** Takes two independent qubits and links them into a magical entangled pair.
+* **How to build it:**
+  1. Put Gate **`H`** on Qubit 0 (makes Qubit 0 spin).
+  2. Put Gate **`CX`** from Qubit 0 to Qubit 1 (links Qubit 1 to Qubit 0).
+* **Result:** Whenever you measure both qubits, they will **always match**:
+  * 50% chance of both being `00`
+  * 50% chance of both being `11`
+  * Never `01` or `10`!
 
-| Term | Category | Definition |
-|---|:---:|---|
-| **Qubit** | Core Concept | Quantum bit capable of holding linear combinations of basis states. |
-| **Superposition** | Core Concept | The mathematical property allowing states to exist simultaneously in multiple basis states. |
-| **Entanglement** | Core Concept | Inseparable quantum correlation between multiple qubits. |
-| **Bra-Ket** | Mathematics | Standard Dirac notation for quantum state vectors and operators. |
-| **Statevector** | Mathematics | A normalized complex vector containing all $2^n$ quantum amplitudes. |
-| **Density Matrix** | Mathematics | Positive semi-definite Hermitian operator representing pure or mixed states. |
-| **Partial Trace** | Mathematics | Linear mapping tracing out subsystem degrees of freedom. |
-| **Bloch Sphere** | Visualization | Unit sphere representing single-qubit pure state geometry. |
-| **Hadamard ($H$)** | Gate | Equal superposition generator creating unbiased basis states. |
-| **Pauli-X ($X$)** | Gate | Quantum NOT gate that interchanges $|0\rangle$ and $|1\rangle$. |
-| **Pauli-Y ($Y$)** | Gate | Combined bit and phase flip operator. |
-| **Pauli-Z ($Z$)** | Gate | Phase flip operator leaving $|0\rangle$ unchanged and negating $|1\rangle$. |
-| **CNOT / CX** | Gate | 2-qubit entangling gate controlled by the first qubit. |
-| **Toffoli / CCX** | Gate | 3-qubit universal reversible logic gate. |
-| **SWAP** | Gate | 2-qubit state exchange operator. |
-| **Measurement** | Operation | Projection of quantum wavefunction into classical computational basis. |
-| **Shot Sampling** | Simulation | Repeating circuit execution (e.g. 1024 times) to gather probability distributions. |
-| **Born Rule** | Principle | States that measurement probability is the squared magnitude of the complex amplitude. |
-| **Phase Kickback** | Technique | Shifting phase from target ancilla into control register. |
-| **Diffusion Operator** | Algorithm | Inversion-about-the-mean operator in Grover's algorithm. |
-| **QFT** | Algorithm | Quantum Fourier Transform for phase estimation and period finding. |
-| **NISQ** | Hardware | Noisy Intermediate-Scale Quantum era computing. |
+---
+
+### 2. ⚡ Deutsch-Jozsa Algorithm (The 1-Step Oracle Checker)
+* **The Puzzle:** Imagine someone gives you a mystery coin in a closed box. It is either:
+  * A **Fair Coin** (has both Heads and Tails = "Balanced").
+  * A **Fake Trick Coin** (has Heads on both sides = "Constant").
+* **Classical Computer:** Must flip and check the coin at least twice to be sure.
+* **Quantum Computer:** Uses superposition and phase kickback to check **the entire coin in just 1 single step**!
+
+---
+
+### 3. 🔍 Grover's Search Algorithm (The Super-Fast Search)
+* **The Puzzle:** Imagine an unsorted phonebook with 1,000,000 names, and you need to find one specific person.
+* **Classical Computer:** Has to check names one-by-one (might take up to 1,000,000 tries).
+* **Quantum Computer (Grover):** 
+  1. Creates a superposition of all 1,000,000 names at once.
+  2. Uses an **Oracle** to mark the right person with a minus sign.
+  3. Uses a **Diffusion Operator** (amplitude amplifier) to boost the volume of the right answer and cancel out the wrong answers.
+  4. Finds the person in only about **1,000 steps** instead of 1,000,000!
+
+---
+
+### 4. 📡 Quantum Teleportation (Sending Info Instantly)
+* **What does it do?** Transmits the quantum state of a qubit from Alice to Bob without physically moving the qubit itself!
+* **How it works:**
+  1. Alice and Bob share a pair of entangled qubits (a Bell state).
+  2. Alice combines her secret qubit with her entangled qubit and measures them.
+  3. Alice calls Bob on a normal phone and tells him the 2 measurement numbers.
+  4. Bob applies a simple gate to his qubit, and his qubit transforms into Alice's exact original secret state!
+
+---
+
+### 5. 🌊 Quantum Fourier Transform (QFT)
+* **What does it do?** Discovers hidden patterns, rhythms, and frequencies inside quantum data.
+* **Why is it important?** It is the secret superpower behind Shor's algorithm (which can break internet passwords and factor giant numbers).
+
+---
+
+## 5. The Bloch Sphere (The 3D Quantum Globe)
+
+Think of a single qubit as a **globe of the Earth**:
+
+```
+           North Pole (|0⟩)
+                 ▲
+                 │
+      West ◄─────┼─────► East
+                 │
+                 ▼
+           South Pole (|1⟩)
+```
+
+* **North Pole:** The qubit is strictly **`|0⟩`** (100% chance of measuring 0).
+* **South Pole:** The qubit is strictly **`|1⟩`** (100% chance of measuring 1).
+* **Equator (Middle):** The qubit is in **50/50 Superposition** (like `|+⟩` or `|-⟩`).
+* **Any other point on the globe:** A unique quantum state with specific probabilities and phase angles.
+
+---
+
+## 6. Quantum Libraries & Tools in this Project
+
+* **`Qiskit` (by IBM):** The main Python engine that builds the circuits and runs quantum simulations.
+* **`Qiskit Aer`:** The high-speed simulator that simulates what happens when real quantum hardware runs the circuit with 1024 shots.
+* **`Cirq` (by Google):** Quantum library used for exporting circuits in Google Quantum AI format.
+* **`PennyLane` (by Xanadu):** Quantum library used for quantum machine learning and hybrid algorithms.
+* **`Gemini AI (gemini-3.6-flash)`:** The built-in AI Quantum Tutor that explains your circuits in real-time.
+* **`React Flow & Zustand`:** Powers the interactive drag-and-drop circuit canvas on your screen.
+
+---
+
+## 7. Quick Glossary (Dictionary of Terms)
+
+| Term | Simple Meaning |
+|---|---|
+| **Qubit** | A quantum bit that can be 0, 1, or both simultaneously. |
+| **Superposition** | The state of being in multiple possibilities at once (the spinning coin). |
+| **Entanglement** | A link between two qubits where one instantly dictates the other (connected dice). |
+| **Measurement** | Looking at a qubit and forcing it to stop at either 0 or 1. |
+| **Gate** | A tool placed on a quantum wire that transforms the qubit (flip, spin, link). |
+| **Shots** | The number of times a circuit is simulated (e.g. 1024 times) to count statistics. |
+| **Histogram** | The bar chart showing how many times outcome `00`, `01`, `10`, or `11` occurred. |
+| **Oracle** | A mystery black-box subroutine that marks the right answer with a tag. |
+| **Statevector** | The exact complete list of numbers describing everything about the quantum state before measurement. |
