@@ -1,3 +1,11 @@
+import os
+import sys
+
+# Ensure root directory is in sys.path regardless of execution folder
+ROOT_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
 import pytest
 import httpx
 from backend.main import app
