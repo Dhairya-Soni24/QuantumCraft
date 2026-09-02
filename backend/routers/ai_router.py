@@ -1,7 +1,9 @@
+import json
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from typing import List, Dict, Any, Optional
-from backend.ai_services import AIService
+from backend.ai_services import AIService, chat_tutor_stream
 
 router = APIRouter(prefix="/api/v1/ai", tags=["AI Quantum Tutor"])
 
@@ -9,10 +11,6 @@ router = APIRouter(prefix="/api/v1/ai", tags=["AI Quantum Tutor"])
 # -----------------------------------------------------------------------------
 # Schemas: AI Chat
 # -----------------------------------------------------------------------------
-class ChatMessage(BaseModel):
-    sender: str = Field(..., description="'user' or 'assistant'")
-    text: str
-
 class AIChatRequest(BaseModel):
     message: str = Field(..., description="Student message / question")
     history: Optional[List[Dict[str, str]]] = Field(default_factory=list, description="Recent conversation turns")
@@ -22,6 +20,11 @@ class AIChatResponse(BaseModel):
     reply: str
     suggested_actions: List[str] = []
     concept_tags: List[str] = []
+
+class StreamChatRequest(BaseModel):
+    message: str
+    history: Optional[List[Dict[str, str]]] = []
+    circuit_context: Optional[Dict[str, Any]] = {}
 
 
 # -----------------------------------------------------------------------------
@@ -83,13 +86,28 @@ class AIRecommendResponse(BaseModel):
 
 
 # -----------------------------------------------------------------------------
+# SSE Event Generator
+# -----------------------------------------------------------------------------
+async def sse_event_generator(req: StreamChatRequest):
+    """Encapsulates streamed tokens into standard Server-Sent Events (SSE) data frames."""
+    try:
+        async for token in chat_tutor_stream(req.message, req.history, req.circuit_context):
+            payload = json.dumps({"token": token})
+            yield f"data: {payload}\n\n"
+        yield "data: [DONE]\n\n"
+    except Exception as e:
+        error_payload = json.dumps({"error": str(e)})
+        yield f"data: {error_payload}\n\n"
+
+
+# -----------------------------------------------------------------------------
 # Endpoints
 # -----------------------------------------------------------------------------
 
 @router.post("/chat", response_model=AIChatResponse)
 async def chat_with_tutor(payload: AIChatRequest):
     """
-    Interactive quantum computing AI tutor chat with live circuit context awareness.
+    Interactive quantum computing AI tutor chat with live circuit context awareness (JSON).
     """
     try:
         res = await AIService.chat_tutor(
@@ -100,6 +118,24 @@ async def chat_with_tutor(payload: AIChatRequest):
         return res
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"AI Chat failed: {str(e)}")
+
+
+@router.post("/chat/stream")
+async def chat_stream_endpoint(payload: StreamChatRequest):
+    """
+    Server-Sent Events (SSE) real-time streaming endpoint for the AI Quantum Tutor.
+    """
+    return StreamingResponse(
+        sse_event_generator(payload),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+            "Access-Control-Allow-Origin": "*",
+            "Access-Control-Allow-Headers": "*"
+        }
+    )
 
 
 @router.post("/explain", response_model=AIExplainResponse)

@@ -1,44 +1,107 @@
+import os
 import json
 import asyncio
-from typing import List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, AsyncGenerator
 import google.generativeai as genai
 from backend.config import settings
 
 # Configure Gemini Client if API key is present
-if settings.GEMINI_API_KEY:
+GEMINI_KEY = getattr(settings, "GEMINI_API_KEY", None) or os.getenv("GEMINI_API_KEY", "")
+if GEMINI_KEY:
     try:
-        genai.configure(api_key=settings.GEMINI_API_KEY)
+        genai.configure(api_key=GEMINI_KEY)
     except Exception as e:
         print(f"[AIService Warning] Failed to configure Gemini: {e}")
 
+MODEL_NAME = "gemini-3.6-flash"
 
+SYSTEM_PROMPT = """You are QuantumCraft's intelligent AI Quantum Tutor. 
+Guide students through quantum computing concepts (superposition, entanglement, phase, quantum gates, circuits).
+Keep explanations intuitive, concise, mathematically sound, and encouraging.
+If circuit context is provided, tailor your response directly to the student's active qubits and gate sequence."""
+
+# -----------------------------------------------------------------------------
+# Streaming Utilities
+# -----------------------------------------------------------------------------
+def _build_prompt_payload(message: str, history: List[Dict[str, str]], circuit_context: Dict[str, Any]) -> str:
+    prompt_parts = [f"System: {SYSTEM_PROMPT}\n"]
+    if circuit_context:
+        prompt_parts.append(f"Active Circuit State: {json.dumps(circuit_context, indent=2)}\n")
+    for turn in (history or [])[-6:]:
+        role = "Student" if turn.get("role") == "user" else "Tutor"
+        prompt_parts.append(f"{role}: {turn.get('content', '')}")
+    prompt_parts.append(f"Student: {message}\nTutor:")
+    return "\n".join(prompt_parts)
+
+async def _offline_fallback_stream(message: str, circuit_context: Dict[str, Any]) -> AsyncGenerator[str, None]:
+    """Provides a natural token-stream fallback if Gemini is offline or rate-limited."""
+    qubit_count = circuit_context.get("qubit_count", "N/A") if circuit_context else "N/A"
+    sample_text = (
+        f"I see you're working on a circuit with {qubit_count} qubits! "
+        f"Regarding your question ('{message}'): In quantum computing, gates act as unitary "
+        "transformations on complex amplitude vectors. For instance, applying a Hadamard gate creates an "
+        "equal superposition (|0⟩ + |1⟩)/√2, allowing quantum parallelism before measurement."
+    )
+    tokens = sample_text.split(" ")
+    for token in tokens:
+        yield token + " "
+        await asyncio.sleep(0.03)
+
+async def chat_tutor_stream(
+    message: str, 
+    history: List[Dict[str, str]] = None, 
+    circuit_context: Dict[str, Any] = None
+) -> AsyncGenerator[str, None]:
+    """
+    Streams quantum tutor responses token-by-token using gemini-3.6-flash.
+    Falls back gracefully to a simulated token stream if offline.
+    """
+    history = history or []
+    circuit_context = circuit_context or {}
+
+    if not GEMINI_KEY:
+        async for chunk in _offline_fallback_stream(message, circuit_context):
+            yield chunk
+        return
+
+    try:
+        model = genai.GenerativeModel(model_name=MODEL_NAME)
+        prompt = _build_prompt_payload(message, history, circuit_context)
+        response = model.generate_content(prompt, stream=True)
+        
+        for chunk in response:
+            if chunk.text:
+                yield chunk.text
+                await asyncio.sleep(0.01)
+    except Exception as e:
+        print(f"[AIService Warning] Streaming Gemini call failed, using fallback stream: {e}")
+        async for chunk in _offline_fallback_stream(message, circuit_context):
+            yield chunk
+
+
+# -----------------------------------------------------------------------------
+# AIService Class: Full Structured Generation Methods
+# -----------------------------------------------------------------------------
 class AIService:
     @staticmethod
     def _get_model():
-        if not settings.GEMINI_API_KEY:
+        if not GEMINI_KEY:
             return None
         return genai.GenerativeModel(
-            model_name="gemini-3.6-flash",
+            model_name=MODEL_NAME,
             generation_config={"temperature": 0.3}
         )
 
-    # -------------------------------------------------------------------------
-    # 1. Interactive AI Quantum Tutor Chat
-    # -------------------------------------------------------------------------
+    # 1. Interactive AI Quantum Tutor Chat (Structured JSON)
     @staticmethod
     async def chat_tutor(
         message: str,
         history: Optional[List[Dict[str, str]]] = None,
         circuit_context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        Interactive conversational AI tutor tailored to quantum computing pedagogy,
-        dynamically aware of active circuit AST, gates, and simulation output.
-        """
         history = history or []
         circuit_context = circuit_context or {}
 
-        # Construct contextual system instructions
         context_str = ""
         if circuit_context:
             qubits = circuit_context.get("qubit_count", "unknown")
@@ -68,20 +131,13 @@ Return ONLY a JSON object with this exact structure:
     "concept_tags": ["superposition", "entanglement"]
 }}
 """
-
-        prompt = f"""
-Conversation History:
-{json.dumps(history[-6:] if history else [])}
-
-Student: {message}
-"""
+        prompt = f"Conversation History:\n{json.dumps(history[-6:] if history else [])}\n\nStudent: {message}"
 
         try:
             model = AIService._get_model()
             if not model:
                 raise ValueError("Gemini API key is not configured.")
 
-            # Run generation in async loop
             response = await asyncio.to_thread(
                 model.generate_content,
                 f"{system_prompt}\n\n{prompt}",
@@ -90,12 +146,10 @@ Student: {message}
             return json.loads(response.text)
 
         except Exception as e:
-            print(f"[AIService Warning] Gemini chat failed, using intelligent rule-based fallback: {e}")
+            print(f"[AIService Warning] Gemini chat failed, using fallback: {e}")
             return AIService._fallback_chat(message, circuit_context)
 
-    # -------------------------------------------------------------------------
     # 2. Step-by-Step Circuit Explainer
-    # -------------------------------------------------------------------------
     @staticmethod
     async def explain_circuit(
         circuit_ast: List[Dict[str, Any]],
@@ -103,9 +157,6 @@ Student: {message}
         state_vector: Optional[List[List[float]]] = None,
         counts: Optional[Dict[str, int]] = None
     ) -> Dict[str, Any]:
-        """
-        Generates deep, step-by-step mathematical and conceptual explanation of the quantum circuit.
-        """
         prompt = f"""
 Analyze this quantum circuit and explain its operation step-by-step:
 - Qubits: {qubit_count}
@@ -147,12 +198,10 @@ Return ONLY a JSON object with this exact schema:
             return json.loads(response.text)
 
         except Exception as e:
-            print(f"[AIService Warning] Gemini explain failed, using rule-based explainer: {e}")
+            print(f"[AIService Warning] Gemini explain failed, using fallback: {e}")
             return AIService._fallback_explain(circuit_ast, qubit_count, counts)
 
-    # -------------------------------------------------------------------------
     # 3. Progressive Challenge Hint Generator
-    # -------------------------------------------------------------------------
     @staticmethod
     async def generate_hint(
         challenge_title: str,
@@ -160,9 +209,6 @@ Return ONLY a JSON object with this exact schema:
         target_state: Optional[str] = None,
         current_circuit: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """
-        Provides progressive pedagogical hints without giving away full solutions.
-        """
         current_circuit = current_circuit or {}
         prompt = f"""
 You are a Quantum Computing Challenge Tutor. A student is working on a challenge:
@@ -203,9 +249,7 @@ Return ONLY a JSON object with this structure:
                 "conceptual_question": "Does your circuit need to create equal probability amplitudes across multiple basis states?"
             }
 
-    # -------------------------------------------------------------------------
     # 4. Learning Path Recommendations
-    # -------------------------------------------------------------------------
     @staticmethod
     async def recommend_next_steps(
         completed_lessons: list,
@@ -266,9 +310,7 @@ Return ONLY a JSON object with this exact structure:
                 "next_steps": fallback_steps
             }
 
-    # -------------------------------------------------------------------------
-    # Offline Intelligent Fallbacks
-    # -------------------------------------------------------------------------
+    # 5. Offline Fallbacks
     @staticmethod
     def _fallback_chat(message: str, circuit_context: Dict[str, Any]) -> Dict[str, Any]:
         msg = message.lower()
