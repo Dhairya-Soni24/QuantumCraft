@@ -7,6 +7,8 @@ from backend.supabase_client import get_supabase
 from backend.routers.simulation_router import router as simulation_router
 from backend.routers.ai_router import router as ai_router
 from backend.routers.circuits_router import router as circuits_router
+from backend.routers.courses_router import router as courses_router
+from backend.routers.challenges_router import router as challenges_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -27,13 +29,25 @@ app.add_middleware(
 app.include_router(simulation_router)
 app.include_router(ai_router)
 app.include_router(circuits_router)
+app.include_router(courses_router)
+app.include_router(challenges_router)
 
 @app.get("/")
 def read_root():
     return {
         "status": "online",
         "project": settings.PROJECT_NAME,
-        "environment": settings.ENV
+        "environment": settings.ENV,
+        "endpoints": [
+            "/api/v1/simulate",
+            "/api/v1/ai/chat",
+            "/api/v1/ai/explain",
+            "/api/v1/ai/hint",
+            "/api/v1/ai/recommend",
+            "/api/v1/circuits",
+            "/api/v1/courses",
+            "/api/v1/challenges"
+        ]
     }
 
 @app.get("/health")
@@ -44,4 +58,4 @@ def health_check():
         response = supabase.table("courses").select("id").limit(1).execute()
         return {"backend": "healthy", "database": "connected"}
     except Exception as e:
-        return {"backend": "healthy", "database": "error", "details": str(e)}
+        return {"backend": "healthy", "database": "offline_mode", "details": str(e)}
