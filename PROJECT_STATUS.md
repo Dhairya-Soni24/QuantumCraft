@@ -2,6 +2,7 @@
 
 **Date:** September 2026  
 **Platform:** AI-Based Interactive Quantum Algorithm Learning Platform (IQ-ALP)  
+**Team Structure:** 2-Member Core Team (Dhairya & Ansh — Het's responsibilities reallocated)  
 **Current Overall Completion:** **~60%**
 
 ---
@@ -12,9 +13,8 @@
 ┌───────────────────────────────────────────────────────────────┐
 │ ROLE & TEAM MEMBER                  PROGRESS        PERCENTAGE│
 ├───────────────────────────────────────────────────────────────┤
-│ 👤 DHAIRYA (Backend, Database & AI)  ████████████████░░░░  80%│
-│ 👤 HET     (Quantum Engine & Algos)  ████████████░░░░░░░░  60%│
-│ 👤 ANSH    (Frontend, Canvas & UX)   ████████░░░░░░░░░░░░  40%│
+│ 👤 DHAIRYA (Backend, DB, AI & Sim)   ████████████████░░░░  75%│
+│ 👤 ANSH    (Frontend, Canvas, UX)    ████████░░░░░░░░░░░░  40%│
 ├───────────────────────────────────────────────────────────────┤
 │ 🚀 TOTAL PROJECT COMPLETION          █████████████░░░░░░░  60%│
 └───────────────────────────────────────────────────────────────┘
@@ -22,18 +22,18 @@
 
 ---
 
-## 2. Detailed Work Breakdown by Member
+## 2. Reallocated Work Breakdown (2-Member Structure)
 
 ### 👤 SECTION A: DHAIRYA
-**Role:** Backend Integration, Database Architecture & AI Orchestration Manager  
-**Status:** **80% Completed**
+**Role:** Backend Integration, Database Architecture, AI Orchestration & Quantum Simulation Engine  
+**Status:** **75% Completed**
 
 #### ✅ Completed Work:
 1. **PostgreSQL / Supabase Database Architecture**:
    - Designed 7 normalized tables in `database/schema.sql`:
      - `users`, `courses`, `lessons`, `saved_circuits`, `user_progress`, `challenges`, `challenge_submissions`.
-   - Automatic timestamp triggers and Row-Level Security (RLS) policies.
-   - Database seeder (`seed_db.py`) populated with starter quantum curriculum.
+   - Automated timestamp triggers and Row-Level Security (RLS) policies.
+   - Database seeder (`seed_db.py`) with starter quantum curriculum.
 2. **FastAPI Application Gateway & Security**:
    - `backend/main.py`: CORS middleware, health check endpoint (`/health`), and dynamic router registration.
    - `backend/auth.py`: JWT token verification and dev fallback.
@@ -48,8 +48,19 @@
    - `backend/routers/courses_router.py`: `GET /api/v1/courses`, `GET /api/v1/courses/{id}`, `GET /api/v1/courses/{id}/lessons`.
    - `backend/routers/challenges_router.py`: `GET /api/v1/challenges`, `POST /api/v1/challenges/{id}/evaluate` (automated quantum grading).
    - `backend/routers/circuits_router.py`: Full CRUD for user quantum circuits.
+5. **Core Quantum Simulator (`backend/simulator.py`)**:
+   - AST translation to Qiskit `QuantumCircuit`.
+   - Gate support (Single-qubit, two-qubit CX/CZ/SWAP, three-qubit Toffoli, Measurement).
+   - Reduced density matrix math via `partial_trace` and single-qubit Bloch vector coordinates $(x, y, z)$.
 
-#### ⏳ Remaining Tasks:
+#### ⏳ Remaining Tasks for Dhairya:
+- [ ] **Quantum Algorithm Templates & Multi-Framework Engines *(Reallocated from Het)***:
+  - Add backend algorithmic circuit templates (`GET /api/v1/algorithms/templates`):
+    - **Deutsch-Jozsa Algorithm** (Constant vs Balanced Oracle).
+    - **Grover's Search Algorithm** (Oracle + Diffusion Operator).
+    - **Quantum Teleportation Protocol**.
+    - **Superdense Coding & Quantum Fourier Transform (QFT)**.
+  - Multi-framework translation support (**Cirq** and **PennyLane** code generators/backends in `backend/simulator.py`).
 - [ ] **User Progress & Stats Tracking**:
   - `POST /api/v1/progress/complete-lesson`: Mark lessons complete and update streak.
   - `GET /api/v1/users/profile/stats`: Aggregate XP, streak, and activity heatmap data for `/profile`.
@@ -58,41 +69,8 @@
 
 ---
 
-### 👤 SECTION B: HET
-**Role:** Quantum Simulator & Algorithmic Concepts Engine Developer  
-**Status:** **60% Completed**
-
-#### ✅ Completed Work:
-1. **Core Qiskit Simulation Engine (`backend/simulator.py`)**:
-   - JSON AST to Qiskit `QuantumCircuit` translation.
-   - Gate support:
-     - **Single-Qubit**: `H, X, Y, Z, S, SDG, T, TDG, P, RX, RY, RZ`.
-     - **Two-Qubit**: `CX (CNOT), CZ, SWAP`.
-     - **Three-Qubit**: `CCX (Toffoli)`.
-     - **Operations**: Measurement (`M`).
-   - Strict boundary validation (out-of-bounds qubit indices, target count verification).
-2. **Statevector & Bloch Vector Coordinates**:
-   - Single-qubit reduced density matrix math using `partial_trace`.
-   - Bloch sphere Cartesian vector coordinates $(x, y, z)$ computation for each qubit.
-3. **Aer Execution & Measurement Sampling**:
-   - `qasm_simulator` shot sampling (default 1024 shots) + statevector probability distribution fallback.
-
-#### ⏳ Remaining Tasks:
-- [ ] **Multi-Framework Simulator Backends**:
-  - Integrate **Cirq** and **PennyLane** execution engines alongside Qiskit.
-- [ ] **Prebuilt Quantum Algorithm Templates**:
-  - Add backend algorithmic templates:
-    - Deutsch-Jozsa Algorithm (constant vs balanced oracle).
-    - Grover's Search Algorithm (oracle + diffusion operator).
-    - Quantum Teleportation Protocol.
-    - Quantum Fourier Transform (QFT).
-- [ ] **NISQ Noise Modeling (Optional)**:
-  - Add realistic quantum noise models (depolarizing noise, thermal relaxation $T_1/T_2$, readout errors).
-
----
-
-### 👤 SECTION C: ANSH
-**Role:** Interactive Frontend & User Experience (UX) Developer  
+### 👤 SECTION B: ANSH
+**Role:** Interactive Frontend, Quantum Canvas, 3D Visualizations & UX  
 **Status:** **40% Completed**
 
 #### ✅ Completed Work:
@@ -105,13 +83,16 @@
    - Drag-and-drop gate positioning and grid lane snapping (`snapPosition`, `snapNodeToLane`).
    - Custom `WireNode` and `GateNode` components.
 
-#### ⏳ Remaining Tasks:
+#### ⏳ Remaining Tasks for Ansh:
 - [ ] **Frontend-to-Backend API Integration (`frontend/lib/api.js`)**:
   - Connect **Run Simulation** button to `POST /api/v1/simulate`.
   - Connect **AI Tutor chat** input and message history to `POST /api/v1/ai/chat`.
   - Connect **Lessons & Challenges** views to `GET /api/v1/courses` and `GET /api/v1/challenges`.
-- [ ] **Live Qiskit Code Generation**:
-  - Dynamically generate Python Qiskit code in the editor panel based on the placed canvas gates in `useQuantumStore`.
+- [ ] **Algorithm Presets & Framework Switcher UI *(Reallocated from Het)***:
+  - Add an **Algorithm Template Selector** dropdown (Bell State, Grover, Teleportation, Deutsch-Jozsa) in the workspace toolbar that auto-populates the visual circuit.
+  - Add a **Framework Toggle** in the code editor (Qiskit ↔ Cirq ↔ PennyLane).
+- [ ] **Live Qiskit / Cirq Code Generator**:
+  - Dynamically generate Python code in the editor panel based on the placed canvas gates in `useQuantumStore`.
 - [ ] **Dynamic Simulation Visualizations**:
   - Render live probability histograms (e.g. `|00⟩: 50%`, `|11⟩: 50%`) from simulation counts.
   - Render 3D Bloch sphere vector rotations using Three.js / `@react-three/fiber`.
@@ -139,11 +120,11 @@
 
 ---
 
-## 4. Immediate Next Steps & Action Plan
+## 4. Coordinated Action Plan
 
-1. **Next for Dhairya**:
-   - Implement `user_progress` routes (`/api/v1/progress/...`) to connect user achievements with the database.
-2. **Next for Ansh**:
-   - Create `frontend/lib/api.js` and wire up the "Run Simulation" and "AI Tutor" buttons in `frontend/app/page.jsx`.
-3. **Next for Het**:
-   - Add Cirq / PennyLane simulation engines and prebuilt algorithm templates (Deutsch-Jozsa, Grover, Teleportation).
+1. **Dhairya (Backend Focus)**:
+   - Add algorithm template endpoint & multi-framework (Cirq/PennyLane) generator.
+   - Add user progress & profile stats APIs.
+2. **Ansh (Frontend Focus)**:
+   - Wire frontend API client (`api.js`) for simulation, AI tutor, and template loading.
+   - Build 3D Bloch Sphere component and live histogram visualizer.
