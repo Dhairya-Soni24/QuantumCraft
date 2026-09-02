@@ -19,6 +19,17 @@ import {
   ResizablePanel,
   ResizablePanelGroup,
 } from "@/components/ui/resizable";
+import {
+  GRID_SIZE,
+  LANE_HEIGHT,
+  useQuantumStore,
+} from "@/store/useQuantumStore";
+import ReactFlow, {
+  Background,
+  ReactFlowProvider,
+  useReactFlow,
+} from "reactflow";
+import "reactflow/dist/style.css";
 
 const gates = [
   ["H", "Hadamard", "text-cyan-300 border-cyan-400"],
@@ -26,6 +37,98 @@ const gates = [
   ["Y", "Pauli-Y", "text-purple-300 border-purple-400"],
   ["Z", "Pauli-Z", "text-purple-300 border-purple-400"],
 ];
+
+function handleGateDragStart(event, gateType) {
+  event.dataTransfer.setData("application/reactflow", gateType);
+  event.dataTransfer.effectAllowed = "move";
+}
+
+function GateNode({ data }) {
+  return (
+    <div className="flex h-12 w-12 items-center justify-center border border-cyan-400 bg-cyan-950 font-mono font-bold text-cyan-300 shadow-lg shadow-cyan-950/40">
+      {data.label}
+    </div>
+  );
+}
+
+function WireNode({ data }) {
+  return (
+    <div className="pointer-events-none relative h-12 w-[75vw] min-w-[520px]">
+      <span className="absolute left-0 top-1/2 -translate-y-1/2 font-mono text-xs text-cyan-300">
+        {data.label}
+      </span>
+      <span className="absolute left-9 right-0 top-1/2 h-px -translate-y-1/2 bg-cyan-300/60" />
+    </div>
+  );
+}
+
+const nodeTypes = {
+  gate: GateNode,
+  wire: WireNode,
+};
+
+const gateLibrary = [
+  {
+    title: "Single Qubit Gates",
+    items: [
+      ["X", "X", "border-purple-400 text-purple-300 bg-purple-950/30"],
+      ["H", "H", "border-cyan-400 text-cyan-300 bg-cyan-950/30"],
+      ["Z", "Z", "border-purple-400 text-purple-300 bg-purple-950/30"],
+      ["S", "S", "border-purple-400 text-purple-300 bg-purple-950/30"],
+      ["T", "T", "border-purple-400 text-purple-300 bg-purple-950/30"],
+      ["RX", "RX", "border-purple-400 text-purple-300 bg-purple-950/30"],
+      ["RY", "RY", "border-purple-400 text-purple-300 bg-purple-950/30"],
+      ["RZ", "RZ", "border-purple-400 text-purple-300 bg-purple-950/30"],
+    ],
+  },
+  {
+    title: "Multi Qubit Gates",
+    items: [
+      ["CX / CNOT", "CX", "border-blue-400 text-blue-300 bg-blue-950/30"],
+      ["CZ", "CZ", "border-blue-400 text-blue-300 bg-blue-950/30"],
+      ["SWAP", "SWAP", "border-blue-400 text-blue-300 bg-blue-950/30"],
+      ["Toffoli", "TOF", "border-blue-400 text-blue-300 bg-blue-950/30"],
+    ],
+  },
+  {
+    title: "Measurements",
+    items: [["Measure", "M", "border-rose-400 text-rose-300 bg-rose-950/30"]],
+  },
+];
+
+function GateLibrary() {
+  return (
+    <aside className="h-full w-full overflow-y-auto bg-slate-900 p-3">
+      <h2 className="mb-5 text-xs font-bold uppercase tracking-wider">
+        Gate Library
+      </h2>
+      <div className="space-y-5">
+        {gateLibrary.map((category) => (
+          <section key={category.title}>
+            <h3 className="mb-2 text-[11px] uppercase text-slate-300">
+              {category.title}
+            </h3>
+            <div className="grid grid-cols-2 gap-2">
+              {category.items.map(([gateType, label, color]) => (
+                <div
+                  key={gateType}
+                  draggable
+                  onDragStart={(event) => handleGateDragStart(event, gateType)}
+                  className="flex min-h-16 cursor-grab flex-col items-center justify-center border border-slate-800 bg-slate-950 px-1 text-[11px] text-slate-300 active:cursor-grabbing"
+                >
+                  <span className={"mb-1 border px-2 py-1 font-mono font-bold " + color}>
+                    {label}
+                  </span>
+                  {gateType}
+                </div>
+              ))}
+            </div>
+          </section>
+        ))}
+      </div>
+    </aside>
+  );
+}
 
 function Nav() {
   const links = ["Workspace", "Lessons", "Challenges", "Profile"];
@@ -83,6 +186,7 @@ function ActivityBar() {
   );
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Gates() {
   return (
     <aside className="h-full w-full overflow-y-auto bg-slate-900 p-3">
@@ -96,6 +200,8 @@ function Gates() {
         {gates.map(([letter, label, color]) => (
           <div
             key={letter}
+            draggable
+            onDragStart={(event) => handleGateDragStart(event, letter)}
             className="flex h-24 flex-col items-center justify-center border border-slate-800 bg-slate-950 text-xs text-slate-300"
           >
             <span className={"mb-2 border bg-white/5 px-3 py-2 font-mono font-bold " + color}>
@@ -108,14 +214,22 @@ function Gates() {
       <h3 className="mb-2 mt-6 text-[11px] uppercase text-slate-300">
         Multi Qubit
       </h3>
-      <div className="flex h-24 flex-col items-center justify-center border border-slate-800 bg-slate-950 text-xs text-slate-300">
+      <div
+        draggable
+        onDragStart={(event) => handleGateDragStart(event, "CNOT")}
+        className="flex h-24 cursor-grab flex-col items-center justify-center border border-slate-800 bg-slate-950 text-xs text-slate-300"
+      >
         <span className="mb-2 text-blue-400">⊕</span>
         CNOT
       </div>
       <h3 className="mb-2 mt-6 text-[11px] uppercase text-slate-300">
         Operations
       </h3>
-      <div className="flex h-24 flex-col items-center justify-center border border-slate-800 bg-slate-950 text-xs text-slate-300">
+      <div
+        draggable
+        onDragStart={(event) => handleGateDragStart(event, "MEASURE")}
+        className="flex h-24 cursor-grab flex-col items-center justify-center border border-slate-800 bg-slate-950 text-xs text-slate-300"
+      >
         <span className="mb-2 text-rose-400">⌁</span>
         Measure
       </div>
@@ -123,6 +237,94 @@ function Gates() {
   );
 }
 
+function FlowCanvas() {
+  const { project } = useReactFlow();
+  const nodes = useQuantumStore((state) => state.nodes);
+  const edges = useQuantumStore((state) => state.edges);
+  const onNodesChange = useQuantumStore((state) => state.onNodesChange);
+  const onEdgesChange = useQuantumStore((state) => state.onEdgesChange);
+  const onConnect = useQuantumStore((state) => state.onConnect);
+  const addGate = useQuantumStore((state) => state.addGate);
+  const snapNodeToLane = useQuantumStore((state) => state.snapNodeToLane);
+  const addWire = useQuantumStore((state) => state.addWire);
+  const removeWire = useQuantumStore((state) => state.removeWire);
+  const wires = nodes.filter((node) => node.type === "wire");
+
+  function handleDrop(event) {
+    event.preventDefault();
+    const gateType = event.dataTransfer.getData("application/reactflow");
+    if (!gateType) return;
+
+    const bounds = event.currentTarget.getBoundingClientRect();
+    const position = project({
+      x: event.clientX - bounds.left,
+      y: event.clientY - bounds.top,
+    });
+
+    addGate({
+      type: "gate",
+      position,
+      data: { label: gateType.toUpperCase() },
+    });
+  }
+
+  function handleDragOver(event) {
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+  }
+
+  function handleNodeDrag(_event, node) {
+    snapNodeToLane(node.id, node.position);
+  }
+
+  return (
+    <div
+      id="react-flow-canvas"
+      className="relative h-full w-full"
+      onDrop={handleDrop}
+      onDragOver={handleDragOver}
+    >
+      <ReactFlow
+        nodes={nodes}
+        edges={edges}
+        nodeTypes={nodeTypes}
+        onNodesChange={onNodesChange}
+        onEdgesChange={onEdgesChange}
+        onConnect={onConnect}
+        onNodeDrag={handleNodeDrag}
+        snapToGrid
+        snapGrid={[GRID_SIZE, LANE_HEIGHT]}
+        zoomOnPinch
+        zoomOnScroll={false}
+        className="bg-[#020617]"
+      >
+        <Background color="#334155" gap={GRID_SIZE} />
+      </ReactFlow>
+      <div className="absolute bottom-4 left-4 z-20 flex overflow-hidden rounded border border-slate-700 bg-slate-950/95 shadow-lg">
+        <button
+          type="button"
+          aria-label="Add quantum wire"
+          onClick={addWire}
+          className="flex h-9 w-9 items-center justify-center border-r border-slate-700 text-xl text-cyan-300 hover:bg-slate-800"
+        >
+          +
+        </button>
+        <button
+          type="button"
+          aria-label="Remove quantum wire"
+          onClick={removeWire}
+          disabled={!wires.length}
+          className="flex h-9 w-9 items-center justify-center text-xl text-cyan-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-600"
+        >
+          −
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// Kept as a visual fallback for the editor shell while FlowCanvas is mounted.
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function Canvas() {
   return (
     <section className="flex h-full min-h-0 flex-col bg-[#020617]">
@@ -244,14 +446,18 @@ export default function Home() {
       <main className="flex min-h-0 flex-1">
         <ActivityBar />
         <ResizablePanelGroup className="h-[calc(100vh-4rem)] min-w-0 flex-1" direction="horizontal">
-          <ResizablePanel defaultSize={15} minSize={12}><Gates /></ResizablePanel>
+          <ResizablePanel defaultSize={15} minSize={12}><GateLibrary /></ResizablePanel>
           <ResizableHandle
             withHandle
             className="w-[2px] bg-slate-800 transition-colors hover:bg-teal-500 [&>div]:bg-slate-600"
           />
           <ResizablePanel defaultSize={60} minSize={30}>
             <ResizablePanelGroup direction="vertical" className="h-full">
-              <ResizablePanel defaultSize={65} minSize={30}><Canvas /></ResizablePanel>
+              <ResizablePanel defaultSize={65} minSize={30}>
+                <ReactFlowProvider>
+                  <FlowCanvas />
+                </ReactFlowProvider>
+              </ResizablePanel>
               <ResizableHandle withHandle className="bg-slate-800 transition-colors hover:bg-teal-500 active:bg-teal-500 [&>div]:bg-slate-600" />
               <ResizablePanel defaultSize={35} minSize={20}><Code /></ResizablePanel>
             </ResizablePanelGroup>
