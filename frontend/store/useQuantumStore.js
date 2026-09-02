@@ -1,5 +1,6 @@
 import { addEdge, applyEdgeChanges, applyNodeChanges } from "reactflow";
 import { create } from "zustand";
+import { runSimulation } from "@/lib/api";
 
 export const LANE_HEIGHT = 100;
 export const GRID_SIZE = 80;
@@ -34,9 +35,31 @@ export const useQuantumStore = create((set, get) => ({
   edges: [],
   selectedFramework: "qiskit",
   shots: 1024,
+  simulationResults: null,
+  isSimulating: false,
+  simulationError: null,
 
   setFramework: (framework) => set({ selectedFramework: framework }),
   setShots: (shots) => set({ shots }),
+  setSimulationResults: (results) =>
+    set({ simulationResults: results, isSimulating: false, simulationError: null }),
+
+  runSimulationAction: async () => {
+    const { getCircuitAST } = get();
+    set({ isSimulating: true, simulationError: null });
+    try {
+      const ast = getCircuitAST();
+      const results = await runSimulation(ast);
+      set({ simulationResults: results, isSimulating: false });
+      return results;
+    } catch (error) {
+      set({
+        simulationError: error.message || "Simulation failed",
+        isSimulating: false,
+      });
+      throw error;
+    }
+  },
 
   onNodesChange: (changes) =>
     set((state) => ({

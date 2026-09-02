@@ -24,6 +24,7 @@ import {
   LANE_HEIGHT,
   useQuantumStore,
 } from "@/store/useQuantumStore";
+import SimulationOutput from "@/components/SimulationOutput";
 import ReactFlow, {
   Background,
   ReactFlowProvider,
@@ -248,6 +249,8 @@ function FlowCanvas() {
   const snapNodeToLane = useQuantumStore((state) => state.snapNodeToLane);
   const addWire = useQuantumStore((state) => state.addWire);
   const removeWire = useQuantumStore((state) => state.removeWire);
+  const runSimulationAction = useQuantumStore((state) => state.runSimulationAction);
+  const isSimulating = useQuantumStore((state) => state.isSimulating);
   const wires = nodes.filter((node) => node.type === "wire");
 
   function handleDrop(event) {
@@ -278,46 +281,65 @@ function FlowCanvas() {
   }
 
   return (
-    <div
-      id="react-flow-canvas"
-      className="relative h-full w-full"
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-    >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeDrag={handleNodeDrag}
-        snapToGrid
-        snapGrid={[GRID_SIZE, LANE_HEIGHT]}
-        zoomOnPinch
-        zoomOnScroll={false}
-        className="bg-[#020617]"
+    <div className="flex h-full w-full flex-col bg-[#020617]">
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900 px-3 text-xs uppercase z-10">
+        <span className="flex items-center gap-2">
+          <Activity size={15} className="text-cyan-400" />
+          Circuit Editor
+          <span className="text-slate-600">|</span>
+          <span className="font-mono normal-case text-slate-300">main.qc</span>
+        </span>
+        <button
+          onClick={() => runSimulationAction()}
+          disabled={isSimulating}
+          className="flex items-center gap-1.5 rounded border border-cyan-400/60 bg-cyan-950/80 px-3 py-1 font-mono text-xs text-cyan-300 transition-all hover:bg-cyan-400 hover:text-slate-950 disabled:opacity-50"
+        >
+          <Play size={13} className={isSimulating ? "animate-spin" : ""} />
+          {isSimulating ? "Simulating..." : "Run Simulation"}
+        </button>
+      </div>
+
+      <div
+        id="react-flow-canvas"
+        className="relative min-h-0 flex-1 w-full"
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
       >
-        <Background color="#334155" gap={GRID_SIZE} />
-      </ReactFlow>
-      <div className="absolute bottom-4 left-4 z-20 flex overflow-hidden rounded border border-slate-700 bg-slate-950/95 shadow-lg">
-        <button
-          type="button"
-          aria-label="Add quantum wire"
-          onClick={addWire}
-          className="flex h-9 w-9 items-center justify-center border-r border-slate-700 text-xl text-cyan-300 hover:bg-slate-800"
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeDrag={handleNodeDrag}
+          snapToGrid
+          snapGrid={[GRID_SIZE, LANE_HEIGHT]}
+          zoomOnPinch
+          zoomOnScroll={false}
+          className="bg-[#020617]"
         >
-          +
-        </button>
-        <button
-          type="button"
-          aria-label="Remove quantum wire"
-          onClick={removeWire}
-          disabled={!wires.length}
-          className="flex h-9 w-9 items-center justify-center text-xl text-cyan-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-600"
-        >
-          −
-        </button>
+          <Background color="#334155" gap={GRID_SIZE} />
+        </ReactFlow>
+        <div className="absolute bottom-4 left-4 z-20 flex overflow-hidden rounded border border-slate-700 bg-slate-950/95 shadow-lg">
+          <button
+            type="button"
+            aria-label="Add quantum wire"
+            onClick={addWire}
+            className="flex h-9 w-9 items-center justify-center border-r border-slate-700 text-xl text-cyan-300 hover:bg-slate-800"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            aria-label="Remove quantum wire"
+            onClick={removeWire}
+            disabled={!wires.length}
+            className="flex h-9 w-9 items-center justify-center text-xl text-cyan-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-600"
+          >
+            −
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -427,16 +449,7 @@ function Tutor() {
 }
 
 function Output() {
-  return (
-    <section className="relative h-full bg-slate-900 p-3">
-      <div id="plotly-output" aria-label="Bloch sphere and Plotly mount point" className="pointer-events-none absolute inset-0" />
-      <h2 className="mb-3 text-xs uppercase">▥ Simulation Output</h2>
-      <div className="border border-slate-800 bg-slate-950 p-5 text-center text-xs text-slate-300">
-        Probabilities (Shots: 1024)
-        <div className="mt-8 text-cyan-300">──────　──────<br />|00⟩　 |11⟩</div>
-      </div>
-    </section>
-  );
+  return <SimulationOutput />;
 }
 
 export default function Home() {

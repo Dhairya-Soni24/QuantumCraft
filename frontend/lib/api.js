@@ -1,0 +1,120 @@
+const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+
+/**
+ * Execute quantum circuit simulation via FastAPI Aer backend.
+ * @param {Object} astPayload - Circuit AST matching SimulationRequest schema
+ */
+export async function runSimulation(astPayload) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/simulate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(astPayload),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Simulation failed with status ${res.status}`);
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [runSimulation]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Send message to context-aware AI Quantum Tutor.
+ * @param {string} message - Student prompt
+ * @param {Array} history - Previous chat turns
+ * @param {Object} circuitContext - Active workspace AST and counts
+ */
+export async function sendTutorMessage(message, history = [], circuitContext = {}) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/ai/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        history,
+        circuit_context: circuitContext,
+      }),
+    });
+
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || `AI Tutor service error ${res.status}`);
+    }
+
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [sendTutorMessage]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch preset canonical quantum algorithm templates.
+ */
+export async function fetchAlgorithmTemplates() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/algorithms/templates`);
+    if (!res.ok) throw new Error(`Failed to fetch templates (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [fetchAlgorithmTemplates]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch available quantum computing curriculum courses.
+ */
+export async function fetchCourses() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/courses`);
+    if (!res.ok) throw new Error(`Failed to fetch courses (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [fetchCourses]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch interactive quantum algorithm challenges.
+ */
+export async function fetchChallenges() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/challenges`);
+    if (!res.ok) throw new Error(`Failed to fetch challenges (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [fetchChallenges]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Request mathematical & intuitive circuit explanation from AI.
+ */
+export async function explainCircuit(circuitAst, stateVector = null, counts = null) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/ai/explain`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        qubit_count: circuitAst.qubit_count || 2,
+        circuit_ast: circuitAst.circuit_ast || [],
+        state_vector: stateVector,
+        counts,
+      }),
+    });
+    if (!res.ok) throw new Error(`Circuit explanation failed (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [explainCircuit]:", error);
+    throw error;
+  }
+}
