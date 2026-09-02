@@ -1,9 +1,9 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from typing import List, Dict, Any
-from ai_services import AIService
+from backend.ai_services import AIService
 
-router = APIRouter(prefix="/ai", tags=["AI Tutor"])
+router = APIRouter(prefix="/api/v1/ai", tags=["AI Tutor"])
 
 class AIRecommendRequest(BaseModel):
     completed_lessons: List[str] = []
