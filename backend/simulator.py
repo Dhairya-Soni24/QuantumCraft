@@ -201,3 +201,120 @@ def run_qiskit_simulation(req: SimulationRequest) -> Dict[str, Any]:
         "state_vector": state_vector_data,
         "bloch_vectors": bloch_coords
     }
+
+def generate_cirq_code(circuit_ast: List[Any], qubit_count: int) -> str:
+    """Generate executable Google Cirq code from an AST circuit definition."""
+    lines = [
+        "import cirq",
+        "",
+        f"# Initialize {qubit_count} qubits",
+        f"qubits = cirq.LineQubit.range({qubit_count})",
+        "circuit = cirq.Circuit()",
+        ""
+    ]
+    
+    for gate_item in circuit_ast:
+        # Handle dict or Pydantic GateInstruction
+        gate = gate_item.gate.lower() if hasattr(gate_item, "gate") else gate_item.get("gate", "").lower()
+        targets = gate_item.targets if hasattr(gate_item, "targets") else gate_item.get("targets", [])
+        params = gate_item.params if hasattr(gate_item, "params") else gate_item.get("params", [])
+        
+        q_args = ", ".join([f"qubits[{i}]" for i in targets])
+        
+        if gate == "h":
+            lines.append(f"circuit.append(cirq.H({q_args}))")
+        elif gate == "x":
+            lines.append(f"circuit.append(cirq.X({q_args}))")
+        elif gate == "y":
+            lines.append(f"circuit.append(cirq.Y({q_args}))")
+        elif gate == "z":
+            lines.append(f"circuit.append(cirq.Z({q_args}))")
+        elif gate == "s":
+            lines.append(f"circuit.append(cirq.S({q_args}))")
+        elif gate == "t":
+            lines.append(f"circuit.append(cirq.T({q_args}))")
+        elif gate in ["cx", "cnot"]:
+            lines.append(f"circuit.append(cirq.CNOT({q_args}))")
+        elif gate == "cz":
+            lines.append(f"circuit.append(cirq.CZ({q_args}))")
+        elif gate == "swap":
+            lines.append(f"circuit.append(cirq.SWAP({q_args}))")
+        elif gate in ["ccx", "toffoli"]:
+            lines.append(f"circuit.append(cirq.TOFFOLI({q_args}))")
+        elif gate in ["p", "phase", "rz"]:
+            theta = params[0] if params else 0.0
+            lines.append(f"circuit.append(cirq.rz({theta})({q_args}))")
+        elif gate == "rx":
+            theta = params[0] if params else 0.0
+            lines.append(f"circuit.append(cirq.rx({theta})({q_args}))")
+        elif gate == "ry":
+            theta = params[0] if params else 0.0
+            lines.append(f"circuit.append(cirq.ry({theta})({q_args}))")
+        elif gate == "measure":
+            lines.append(f"circuit.append(cirq.measure({q_args}, key='q{targets[0]}'))")
+
+    lines.extend([
+        "",
+        "print(circuit)",
+        "simulator = cirq.Simulator()",
+        "result = simulator.simulate(circuit)",
+        "print(result)"
+    ])
+    return "\n".join(lines)
+
+
+def generate_pennylane_code(circuit_ast: List[Any], qubit_count: int) -> str:
+    """Generate executable PennyLane QNode code from an AST circuit definition."""
+    lines = [
+        "import pennylane as qml",
+        "from pennylane import numpy as np",
+        "",
+        f"dev = qml.device('default.qubit', wires={qubit_count})",
+        "",
+        "@qml.qnode(dev)",
+        "def circuit():"
+    ]
+    
+    for gate_item in circuit_ast:
+        gate = gate_item.gate.lower() if hasattr(gate_item, "gate") else gate_item.get("gate", "").lower()
+        targets = gate_item.targets if hasattr(gate_item, "targets") else gate_item.get("targets", [])
+        params = gate_item.params if hasattr(gate_item, "params") else gate_item.get("params", [])
+        
+        wires_str = f"wires={targets}" if len(targets) > 1 else f"wires={targets[0]}"
+        
+        if gate == "h":
+            lines.append(f"    qml.Hadamard({wires_str})")
+        elif gate == "x":
+            lines.append(f"    qml.PauliX({wires_str})")
+        elif gate == "y":
+            lines.append(f"    qml.PauliY({wires_str})")
+        elif gate == "z":
+            lines.append(f"    qml.PauliZ({wires_str})")
+        elif gate == "s":
+            lines.append(f"    qml.S({wires_str})")
+        elif gate == "t":
+            lines.append(f"    qml.T({wires_str})")
+        elif gate in ["cx", "cnot"]:
+            lines.append(f"    qml.CNOT(wires=[{targets[0]}, {targets[1]}])")
+        elif gate == "cz":
+            lines.append(f"    qml.CZ(wires=[{targets[0]}, {targets[1]}])")
+        elif gate == "swap":
+            lines.append(f"    qml.SWAP(wires=[{targets[0]}, {targets[1]}])")
+        elif gate in ["ccx", "toffoli"]:
+            lines.append(f"    qml.Toffoli(wires=[{targets[0]}, {targets[1]}, {targets[2]}])")
+        elif gate in ["p", "phase", "rz"]:
+            theta = params[0] if params else 0.0
+            lines.append(f"    qml.RZ({theta}, {wires_str})")
+        elif gate == "rx":
+            theta = params[0] if params else 0.0
+            lines.append(f"    qml.RX({theta}, {wires_str})")
+        elif gate == "ry":
+            theta = params[0] if params else 0.0
+            lines.append(f"    qml.RY({theta}, {wires_str})")
+
+    lines.extend([
+        f"    return qml.state()",
+        "",
+        "print('Execution Result:', circuit())"
+    ])
+    return "\n".join(lines)

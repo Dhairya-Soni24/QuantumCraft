@@ -9,6 +9,9 @@ from backend.routers.ai_router import router as ai_router
 from backend.routers.circuits_router import router as circuits_router
 from backend.routers.courses_router import router as courses_router
 from backend.routers.challenges_router import router as challenges_router
+from backend.routers.algorithms_router import router as algorithms_router
+from backend.routers.progress_router import router as progress_router
+from backend.routers.users_router import router as users_router
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -19,7 +22,7 @@ app = FastAPI(
 # Enable CORS for Frontend communication
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Adjust in production
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -31,6 +34,9 @@ app.include_router(ai_router)
 app.include_router(circuits_router)
 app.include_router(courses_router)
 app.include_router(challenges_router)
+app.include_router(algorithms_router)
+app.include_router(progress_router)
+app.include_router(users_router)
 
 @app.get("/")
 def read_root():
@@ -46,7 +52,11 @@ def read_root():
             "/api/v1/ai/recommend",
             "/api/v1/circuits",
             "/api/v1/courses",
-            "/api/v1/challenges"
+            "/api/v1/challenges",
+            "/api/v1/algorithms/templates",
+            "/api/v1/progress/complete-lesson",
+            "/api/v1/progress/my-progress",
+            "/api/v1/users/{user_id}/stats"
         ]
     }
 
