@@ -19,9 +19,24 @@ function gateNodes(nodes) {
   return nodes.filter((node) => node.type === "gate");
 }
 
-export const useQuantumStore = create((set) => ({
+export function normalizeGateName(rawName) {
+  if (!rawName) return "h";
+  const name = String(rawName).trim().toLowerCase();
+  if (name.includes("cnot") || name.includes("cx")) return "cx";
+  if (name.includes("toffoli") || name === "tof" || name === "ccx") return "ccx";
+  if (name.includes("measure") || name === "m") return "measure";
+  if (name === "phase") return "p";
+  return name;
+}
+
+export const useQuantumStore = create((set, get) => ({
   nodes: [],
   edges: [],
+  selectedFramework: "qiskit",
+  shots: 1024,
+
+  setFramework: (framework) => set({ selectedFramework: framework }),
+  setShots: (shots) => set({ shots }),
 
   onNodesChange: (changes) =>
     set((state) => ({
@@ -135,4 +150,75 @@ export const useQuantumStore = create((set) => ({
         ],
       };
     }),
+
+  getCircuitAST: () => {
+    const state = get();
+    const wires = wireNodes(state.nodes);
+    const numQubits = Math.max(wires.length, 1);
+
+    const gateList = gateNodes(state.nodes).sort((a, b) => {
+      if (a.position.x !== b.position.x) {
+        return a.position.x - b.position.x;
+      }
+      return a.position.y - b.position.y;
+    });
+
+    const circuit_ast = gateList.map((node) => {
+      const rawGate = node.data?.gate || node.data?.label || "h";
+      const gname = normalizeGateName(rawGate);
+      const laneIndex = Math.max(0, Math.round(node.position.y / LANE_HEIGHT));
+      const targetQubit = Math.min(laneIndex, numQubits - 1);
+
+      let targets;
+      if (Array.isArray(node.data?.targets)) {
+        targets = node.data.targets;
+      } else if (["cx", "cz", "swap"].includes(gname)) {
+        if (typeof node.data?.controlQubit === "number") {
+          targets = [node.data.controlQubit, targetQubit];
+        } else if (targetQubit === 0 && numQubits > 1) {
+          targets = [0, 1];
+        } else if (targetQubit > 0) {
+          targets = [targetQubit - 1, targetQubit];
+        } else {
+          targets = [0, 0];
+        }
+      } else if (gname === "ccx") {
+        if (targetQubit >= 2) {
+          targets = [targetQubit - 2, targetQubit - 1, targetQubit];
+        } else if (numQubits >= 3) {
+          targets = [0, 1, 2];
+        } else {
+          targets = [targetQubit, targetQubit, targetQubit];
+        }
+      } else {
+        targets = [targetQubit];
+      }
+
+      const instruction = {
+        gate: gname,
+        targets,
+      };
+
+      if (gname === "measure") {
+        instruction.classical_reg =
+          typeof node.data?.classical_reg === "number"
+            ? node.data.classical_reg
+            : targetQubit;
+      }
+
+      if (Array.isArray(node.data?.params)) {
+        instruction.params = node.data.params;
+      }
+
+      return instruction;
+    });
+
+    return {
+      backend: state.selectedFramework || "qiskit",
+      qubit_count: numQubits,
+      circuit_ast,
+      shots: state.shots || 1024,
+    };
+  },
 }));
+
