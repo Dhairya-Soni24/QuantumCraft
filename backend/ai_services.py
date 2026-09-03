@@ -2,12 +2,18 @@ import os
 import json
 import asyncio
 from typing import List, Dict, Any, Optional, AsyncGenerator
-import google.generativeai as genai
+try:
+    import google.generativeai as genai
+    GENAI_AVAILABLE = True
+except ImportError:
+    genai = None
+    GENAI_AVAILABLE = False
+
 from backend.config import settings
 
 # Configure Gemini Client if API key is present
 GEMINI_KEY = getattr(settings, "GEMINI_API_KEY", None) or os.getenv("GEMINI_API_KEY", "")
-if GEMINI_KEY:
+if GEMINI_KEY and GENAI_AVAILABLE:
     try:
         genai.configure(api_key=GEMINI_KEY)
     except Exception as e:
@@ -59,7 +65,7 @@ async def chat_tutor_stream(
     history = history or []
     circuit_context = circuit_context or {}
 
-    if not GEMINI_KEY:
+    if not GEMINI_KEY or not GENAI_AVAILABLE:
         async for chunk in _offline_fallback_stream(message, circuit_context):
             yield chunk
         return
@@ -85,7 +91,7 @@ async def chat_tutor_stream(
 class AIService:
     @staticmethod
     def _get_model():
-        if not GEMINI_KEY:
+        if not GEMINI_KEY or not GENAI_AVAILABLE:
             return None
         return genai.GenerativeModel(
             model_name=MODEL_NAME,

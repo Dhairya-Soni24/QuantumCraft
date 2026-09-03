@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -24,6 +25,7 @@ import {
   LANE_HEIGHT,
   useQuantumStore,
 } from "@/store/useQuantumStore";
+import SimulationOutput from "@/components/SimulationOutput";
 import ReactFlow, {
   Background,
   ReactFlowProvider,
@@ -248,6 +250,8 @@ function FlowCanvas() {
   const snapNodeToLane = useQuantumStore((state) => state.snapNodeToLane);
   const addWire = useQuantumStore((state) => state.addWire);
   const removeWire = useQuantumStore((state) => state.removeWire);
+  const runSimulationAction = useQuantumStore((state) => state.runSimulationAction);
+  const isSimulating = useQuantumStore((state) => state.isSimulating);
   const wires = nodes.filter((node) => node.type === "wire");
 
   function handleDrop(event) {
@@ -278,46 +282,65 @@ function FlowCanvas() {
   }
 
   return (
-    <div
-      id="react-flow-canvas"
-      className="relative h-full w-full"
-      onDrop={handleDrop}
-      onDragOver={handleDragOver}
-    >
-      <ReactFlow
-        nodes={nodes}
-        edges={edges}
-        nodeTypes={nodeTypes}
-        onNodesChange={onNodesChange}
-        onEdgesChange={onEdgesChange}
-        onConnect={onConnect}
-        onNodeDrag={handleNodeDrag}
-        snapToGrid
-        snapGrid={[GRID_SIZE, LANE_HEIGHT]}
-        zoomOnPinch
-        zoomOnScroll={false}
-        className="bg-[#020617]"
+    <div className="flex h-full w-full flex-col bg-[#020617]">
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900 px-3 text-xs uppercase z-10">
+        <span className="flex items-center gap-2">
+          <Activity size={15} className="text-cyan-400" />
+          Circuit Editor
+          <span className="text-slate-600">|</span>
+          <span className="font-mono normal-case text-slate-300">main.qc</span>
+        </span>
+        <button
+          onClick={() => runSimulationAction()}
+          disabled={isSimulating}
+          className="flex items-center gap-1.5 rounded border border-cyan-400/60 bg-cyan-950/80 px-3 py-1 font-mono text-xs text-cyan-300 transition-all hover:bg-cyan-400 hover:text-slate-950 disabled:opacity-50"
+        >
+          <Play size={13} className={isSimulating ? "animate-spin" : ""} />
+          {isSimulating ? "Simulating..." : "Run Simulation"}
+        </button>
+      </div>
+
+      <div
+        id="react-flow-canvas"
+        className="relative min-h-0 flex-1 w-full"
+        onDrop={handleDrop}
+        onDragOver={handleDragOver}
       >
-        <Background color="#334155" gap={GRID_SIZE} />
-      </ReactFlow>
-      <div className="absolute bottom-4 left-4 z-20 flex overflow-hidden rounded border border-slate-700 bg-slate-950/95 shadow-lg">
-        <button
-          type="button"
-          aria-label="Add quantum wire"
-          onClick={addWire}
-          className="flex h-9 w-9 items-center justify-center border-r border-slate-700 text-xl text-cyan-300 hover:bg-slate-800"
+        <ReactFlow
+          nodes={nodes}
+          edges={edges}
+          nodeTypes={nodeTypes}
+          onNodesChange={onNodesChange}
+          onEdgesChange={onEdgesChange}
+          onConnect={onConnect}
+          onNodeDrag={handleNodeDrag}
+          snapToGrid
+          snapGrid={[GRID_SIZE, LANE_HEIGHT]}
+          zoomOnPinch
+          zoomOnScroll={false}
+          className="bg-[#020617]"
         >
-          +
-        </button>
-        <button
-          type="button"
-          aria-label="Remove quantum wire"
-          onClick={removeWire}
-          disabled={!wires.length}
-          className="flex h-9 w-9 items-center justify-center text-xl text-cyan-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-600"
-        >
-          −
-        </button>
+          <Background variant="dots" size={2} color="#475569" gap={50} />
+        </ReactFlow>
+        <div className="absolute bottom-4 left-4 z-20 flex overflow-hidden rounded border border-slate-700 bg-slate-950/95 shadow-lg">
+          <button
+            type="button"
+            aria-label="Add quantum wire"
+            onClick={addWire}
+            className="flex h-9 w-9 items-center justify-center border-r border-slate-700 text-xl text-cyan-300 hover:bg-slate-800"
+          >
+            +
+          </button>
+          <button
+            type="button"
+            aria-label="Remove quantum wire"
+            onClick={removeWire}
+            disabled={!wires.length}
+            className="flex h-9 w-9 items-center justify-center text-xl text-cyan-300 hover:bg-slate-800 disabled:cursor-not-allowed disabled:text-slate-600"
+          >
+            −
+          </button>
+        </div>
       </div>
     </div>
   );
@@ -358,27 +381,49 @@ function Canvas() {
 }
 
 function Code() {
+  const storeCodeText = useQuantumStore((state) => state.codeText);
+  const setNodesFromCode = useQuantumStore((state) => state.setNodesFromCode);
+  const [localCode, setLocalCode] = useState(storeCodeText);
+  const [prevStoreCode, setPrevStoreCode] = useState(storeCodeText);
+  const [isFocused, setIsFocused] = useState(false);
+
+  if (!isFocused && storeCodeText !== prevStoreCode) {
+    setPrevStoreCode(storeCodeText);
+    setLocalCode(storeCodeText);
+  }
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setLocalCode(val);
+    setNodesFromCode(val);
+  };
+
   return (
     <section className="relative flex h-full min-h-0 flex-col bg-slate-950">
-      <div className="flex h-10 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-900 px-3 text-xs uppercase text-cyan-300">
-        <FileCode2 size={15} />
-        Qiskit Editor
-        <span className="text-slate-600">|</span>
-        <span className="font-mono normal-case text-slate-200">circuit.py</span>
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900 px-3 text-xs uppercase text-cyan-300">
+        <div className="flex items-center gap-2">
+          <FileCode2 size={15} />
+          Qiskit Editor
+          <span className="text-slate-600">|</span>
+          <span className="font-mono normal-case text-slate-200">circuit.py</span>
+        </div>
+        <span className="text-[10px] text-slate-500 font-mono">Bi-Directional Sync Active</span>
       </div>
-      <div id="python-code-editor" aria-label="Python code editor mount point" className="absolute inset-x-0 bottom-0 top-10" />
-      <pre className="pointer-events-none overflow-hidden p-5 font-mono text-sm leading-8 text-slate-200">
-        <span className="text-purple-300">from qiskit</span>{" "}
-        <span className="text-cyan-300">import</span> QuantumCircuit, Aer,
-        execute{"\n\n"}
-        <span className="text-slate-500 italic"># Create a Quantum Circuit with 2 qubits and 2 classical bits</span>
-        {"\n"}
-        <span className="text-rose-400">qc</span> = QuantumCircuit(2, 2)
-        {"\n\n"}
-        <span className="text-slate-500 italic"># Apply a Hadamard gate to qubit 0</span>
-        {"\n"}
-        <span className="text-rose-400">qc</span>.h(0)
-      </pre>
+
+      <div className="relative min-h-0 flex-1 p-3">
+        <textarea
+          value={localCode}
+          onChange={handleChange}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => {
+            setIsFocused(false);
+            setNodesFromCode(localCode);
+          }}
+          spellCheck={false}
+          className="h-full w-full resize-none rounded bg-slate-900/90 p-3 font-mono text-xs leading-6 text-cyan-200 outline-none ring-1 ring-slate-800 focus:ring-cyan-500/50"
+          placeholder="# Type Qiskit commands (e.g., qc.h(0), qc.cx(0, 1))"
+        />
+      </div>
     </section>
   );
 }
@@ -427,16 +472,7 @@ function Tutor() {
 }
 
 function Output() {
-  return (
-    <section className="relative h-full bg-slate-900 p-3">
-      <div id="plotly-output" aria-label="Bloch sphere and Plotly mount point" className="pointer-events-none absolute inset-0" />
-      <h2 className="mb-3 text-xs uppercase">▥ Simulation Output</h2>
-      <div className="border border-slate-800 bg-slate-950 p-5 text-center text-xs text-slate-300">
-        Probabilities (Shots: 1024)
-        <div className="mt-8 text-cyan-300">──────　──────<br />|00⟩　 |11⟩</div>
-      </div>
-    </section>
-  );
+  return <SimulationOutput />;
 }
 
 export default function Home() {

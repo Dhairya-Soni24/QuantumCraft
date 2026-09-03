@@ -11,6 +11,8 @@ try:
     QISKIT_AVAILABLE = True
 except ImportError:
     QISKIT_AVAILABLE = False
+    Statevector = Any
+    partial_trace = None
 
 
 class GateInstruction(BaseModel):

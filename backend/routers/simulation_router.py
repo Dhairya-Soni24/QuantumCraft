@@ -3,6 +3,7 @@ from backend.simulator import SimulationRequest, run_qiskit_simulation
 
 router = APIRouter(prefix="/api/v1/simulate", tags=["Simulation Engine"])
 
+@router.post("")
 @router.post("/simulate")
 def simulate_circuit(payload: SimulationRequest):
     """
