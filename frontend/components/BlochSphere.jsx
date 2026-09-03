@@ -13,7 +13,6 @@ export default function BlochSphere({ qubit = 0, x = 0, y = 0, z = 1 }) {
   const r = 60;
 
   // 3D Perspective Projection onto 2D SVG canvas
-  // X axis projects down-left, Y axis projects right, Z axis projects straight up
   const xProj = cx + x * r * 0.7 - y * r * 0.4;
   const yProj = cy - z * r * 0.85 + x * r * 0.3;
 
@@ -56,7 +55,7 @@ export default function BlochSphere({ qubit = 0, x = 0, y = 0, z = 1 }) {
           strokeWidth="1.5"
         />
 
-        {/* Equatorial Circle (Perspective Ellipse) */}
+        {/* Equatorial Circle */}
         <ellipse
           cx={cx}
           cy={cy}

@@ -319,7 +319,7 @@ function FlowCanvas() {
           zoomOnScroll={false}
           className="bg-[#020617]"
         >
-          <Background color="#334155" gap={GRID_SIZE} />
+          <Background variant="dots" size={2} color="#475569" gap={50} />
         </ReactFlow>
         <div className="absolute bottom-4 left-4 z-20 flex overflow-hidden rounded border border-slate-700 bg-slate-950/95 shadow-lg">
           <button
