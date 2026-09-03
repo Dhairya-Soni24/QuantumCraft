@@ -1,5 +1,6 @@
 "use client";
 
+import React, { useState } from "react";
 import Link from "next/link";
 import {
   Activity,
@@ -380,27 +381,49 @@ function Canvas() {
 }
 
 function Code() {
+  const storeCodeText = useQuantumStore((state) => state.codeText);
+  const setNodesFromCode = useQuantumStore((state) => state.setNodesFromCode);
+  const [localCode, setLocalCode] = useState(storeCodeText);
+  const [prevStoreCode, setPrevStoreCode] = useState(storeCodeText);
+  const [isFocused, setIsFocused] = useState(false);
+
+  if (!isFocused && storeCodeText !== prevStoreCode) {
+    setPrevStoreCode(storeCodeText);
+    setLocalCode(storeCodeText);
+  }
+
+  const handleChange = (e) => {
+    const val = e.target.value;
+    setLocalCode(val);
+    setNodesFromCode(val);
+  };
+
   return (
     <section className="relative flex h-full min-h-0 flex-col bg-slate-950">
-      <div className="flex h-10 shrink-0 items-center gap-3 border-b border-slate-800 bg-slate-900 px-3 text-xs uppercase text-cyan-300">
-        <FileCode2 size={15} />
-        Qiskit Editor
-        <span className="text-slate-600">|</span>
-        <span className="font-mono normal-case text-slate-200">circuit.py</span>
+      <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900 px-3 text-xs uppercase text-cyan-300">
+        <div className="flex items-center gap-2">
+          <FileCode2 size={15} />
+          Qiskit Editor
+          <span className="text-slate-600">|</span>
+          <span className="font-mono normal-case text-slate-200">circuit.py</span>
+        </div>
+        <span className="text-[10px] text-slate-500 font-mono">Bi-Directional Sync Active</span>
       </div>
-      <div id="python-code-editor" aria-label="Python code editor mount point" className="absolute inset-x-0 bottom-0 top-10" />
-      <pre className="pointer-events-none overflow-hidden p-5 font-mono text-sm leading-8 text-slate-200">
-        <span className="text-purple-300">from qiskit</span>{" "}
-        <span className="text-cyan-300">import</span> QuantumCircuit, Aer,
-        execute{"\n\n"}
-        <span className="text-slate-500 italic"># Create a Quantum Circuit with 2 qubits and 2 classical bits</span>
-        {"\n"}
-        <span className="text-rose-400">qc</span> = QuantumCircuit(2, 2)
-        {"\n\n"}
-        <span className="text-slate-500 italic"># Apply a Hadamard gate to qubit 0</span>
-        {"\n"}
-        <span className="text-rose-400">qc</span>.h(0)
-      </pre>
+
+      <div className="relative min-h-0 flex-1 p-3">
+        <textarea
+          value={localCode}
+          onChange={handleChange}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => {
+            setIsFocused(false);
+            setNodesFromCode(localCode);
+          }}
+          spellCheck={false}
+          className="h-full w-full resize-none rounded bg-slate-900/90 p-3 font-mono text-xs leading-6 text-cyan-200 outline-none ring-1 ring-slate-800 focus:ring-cyan-500/50"
+          placeholder="# Type Qiskit commands (e.g., qc.h(0), qc.cx(0, 1))"
+        />
+      </div>
     </section>
   );
 }
