@@ -13,7 +13,7 @@ router = APIRouter(prefix="/api/v1/ai", tags=["AI Quantum Tutor"])
 # -----------------------------------------------------------------------------
 class AIChatRequest(BaseModel):
     message: str = Field(..., description="Student message / question")
-    history: Optional[List[Dict[str, str]]] = Field(default_factory=list, description="Recent conversation turns")
+    history: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Recent conversation turns")
     circuit_context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Active workspace circuit AST and counts")
 
 class AIChatResponse(BaseModel):
@@ -22,92 +22,65 @@ class AIChatResponse(BaseModel):
     concept_tags: List[str] = []
 
 class StreamChatRequest(BaseModel):
-    message: str
-    history: Optional[List[Dict[str, str]]] = []
-    circuit_context: Optional[Dict[str, Any]] = {}
+    message: str = Field(..., description="Student prompt")
+    history: Optional[List[Dict[str, Any]]] = Field(default_factory=list, description="Recent conversation history")
+    circuit_context: Optional[Dict[str, Any]] = Field(default_factory=dict, description="Active circuit AST and parameters")
 
 
 # -----------------------------------------------------------------------------
-# Schemas: Circuit Explainer
+# Schemas: Circuit Explanation
 # -----------------------------------------------------------------------------
-class AIExplainRequest(BaseModel):
-    qubit_count: int = 2
-    circuit_ast: List[Dict[str, Any]] = Field(..., description="List of gate operations")
-    state_vector: Optional[List[List[float]]] = None
-    counts: Optional[Dict[str, int]] = None
+class ExplainCircuitRequest(BaseModel):
+    qubit_count: int = Field(default=2, ge=1, le=10)
+    circuit_ast: List[Dict[str, Any]] = Field(default_factory=list)
+    state_vector: Optional[List[Any]] = None
+    counts: Optional[Dict[str, Any]] = None
 
-class StepDetail(BaseModel):
-    step: int
-    gate: str
-    effect: str
-    state_after: Optional[str] = None
-
-class AIExplainResponse(BaseModel):
-    title: str
+class ExplainCircuitResponse(BaseModel):
     summary: str
-    step_by_step: List[StepDetail]
-    quantum_phenomena: List[str]
-    dirac_notation: str
-    key_takeaways: List[str]
+    step_by_step: List[str] = []
+    mathematical_state: str = ""
+    key_takeaways: List[str] = []
 
 
 # -----------------------------------------------------------------------------
-# Schemas: Progressive Hint Generator
+# Schemas: Challenge Hints
 # -----------------------------------------------------------------------------
-class AIHintRequest(BaseModel):
-    challenge_title: str
-    challenge_description: str
-    target_state: Optional[str] = None
-    current_circuit: Optional[Dict[str, Any]] = None
+class ChallengeHintRequest(BaseModel):
+    challenge_id: str
+    current_ast: Optional[List[Dict[str, Any]]] = Field(default_factory=list)
+    attempt_count: int = 1
 
-class AIHintResponse(BaseModel):
+class ChallengeHintResponse(BaseModel):
+    hint_level: int
     hint: str
     suggested_gate: Optional[str] = None
-    level: str = "gentle"
-    conceptual_question: Optional[str] = None
+    concept: str
 
 
 # -----------------------------------------------------------------------------
 # Schemas: Curriculum Recommendations
 # -----------------------------------------------------------------------------
-class AIRecommendRequest(BaseModel):
-    completed_lessons: List[str] = []
-    recent_quiz_scores: List[Dict[str, Any]] = []
-    failed_challenges: List[str] = []
+class RecommendationRequest(BaseModel):
+    user_id: Optional[str] = None
+    completed_lessons: Optional[List[str]] = Field(default_factory=list)
+    solved_challenges: Optional[List[str]] = Field(default_factory=list)
 
-class NextStepItem(BaseModel):
-    type: str
-    lesson_id: str
-    title: str
-
-class AIRecommendResponse(BaseModel):
-    recommendation_reasoning: str
-    next_steps: List[NextStepItem]
-
-
-# -----------------------------------------------------------------------------
-# SSE Event Generator
-# -----------------------------------------------------------------------------
-async def sse_event_generator(req: StreamChatRequest):
-    """Encapsulates streamed tokens into standard Server-Sent Events (SSE) data frames."""
-    try:
-        async for token in chat_tutor_stream(req.message, req.history, req.circuit_context):
-            payload = json.dumps({"token": token})
-            yield f"data: {payload}\n\n"
-        yield "data: [DONE]\n\n"
-    except Exception as e:
-        error_payload = json.dumps({"error": str(e)})
-        yield f"data: {error_payload}\n\n"
+class RecommendationResponse(BaseModel):
+    recommended_course_id: str
+    recommended_lesson_id: str
+    next_challenge_id: str
+    reason: str
+    focus_areas: List[str] = []
 
 
 # -----------------------------------------------------------------------------
 # Endpoints
 # -----------------------------------------------------------------------------
-
 @router.post("/chat", response_model=AIChatResponse)
 async def chat_with_tutor(payload: AIChatRequest):
     """
-    Interactive quantum computing AI tutor chat with live circuit context awareness (JSON).
+    Interactive quantum computing AI tutor chat with live circuit context awareness.
     """
     try:
         res = await AIService.chat_tutor(
@@ -121,32 +94,38 @@ async def chat_with_tutor(payload: AIChatRequest):
 
 
 @router.post("/chat/stream")
-async def chat_stream_endpoint(payload: StreamChatRequest):
+async def stream_chat_with_tutor(payload: StreamChatRequest):
     """
-    Server-Sent Events (SSE) real-time streaming endpoint for the AI Quantum Tutor.
+    Real-time Server-Sent Events (SSE) token streaming endpoint for the AI Quantum Tutor.
     """
-    return StreamingResponse(
-        sse_event_generator(payload),
-        media_type="text/event-stream",
-        headers={
-            "Cache-Control": "no-cache",
-            "Connection": "keep-alive",
-            "X-Accel-Buffering": "no",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "*"
-        }
-    )
+    try:
+        generator = chat_tutor_stream(
+            message=payload.message,
+            history=payload.history,
+            circuit_context=payload.circuit_context
+        )
+        return StreamingResponse(
+            generator,
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+                "Content-Type": "text/event-stream"
+            }
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"AI Chat Stream failed: {str(e)}")
 
 
-@router.post("/explain", response_model=AIExplainResponse)
-async def explain_quantum_circuit(payload: AIExplainRequest):
+@router.post("/explain", response_model=ExplainCircuitResponse)
+async def explain_circuit(payload: ExplainCircuitRequest):
     """
-    Analyzes circuit AST and generates a step-by-step mathematical & conceptual explanation.
+    Returns an intuitive and mathematical explanation of a given quantum circuit.
     """
     try:
         res = await AIService.explain_circuit(
-            circuit_ast=payload.circuit_ast,
             qubit_count=payload.qubit_count,
+            circuit_ast=payload.circuit_ast,
             state_vector=payload.state_vector,
             counts=payload.counts
         )
@@ -155,34 +134,33 @@ async def explain_quantum_circuit(payload: AIExplainRequest):
         raise HTTPException(status_code=500, detail=f"Circuit explanation failed: {str(e)}")
 
 
-@router.post("/hint", response_model=AIHintResponse)
-async def get_challenge_hint(payload: AIHintRequest):
+@router.post("/hint", response_model=ChallengeHintResponse)
+async def get_challenge_hint(payload: ChallengeHintRequest):
     """
-    Provides progressive hints for challenge tasks without spoiling direct answers.
+    Returns progressive hints for challenges without giving away full solutions.
     """
     try:
-        res = await AIService.generate_hint(
-            challenge_title=payload.challenge_title,
-            challenge_description=payload.challenge_description,
-            target_state=payload.target_state,
-            current_circuit=payload.current_circuit
+        res = await AIService.get_challenge_hint(
+            challenge_id=payload.challenge_id,
+            current_ast=payload.current_ast or [],
+            attempt_count=payload.attempt_count
         )
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Hint generation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Challenge hint failed: {str(e)}")
 
 
-@router.post("/recommend", response_model=AIRecommendResponse)
-async def get_learning_recommendation(payload: AIRecommendRequest):
+@router.post("/recommend", response_model=RecommendationResponse)
+async def recommend_curriculum(payload: RecommendationRequest):
     """
-    Suggests adaptive next learning steps based on student progression.
+    Returns adaptive learning path recommendations based on user progress.
     """
     try:
-        res = await AIService.recommend_next_steps(
+        res = await AIService.recommend_learning_path(
+            user_id=payload.user_id,
             completed_lessons=payload.completed_lessons,
-            recent_quiz_scores=payload.recent_quiz_scores,
-            failed_challenges=payload.failed_challenges
+            solved_challenges=payload.solved_challenges
         )
         return res
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Recommendation failed: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Curriculum recommendation failed: {str(e)}")

@@ -19,7 +19,7 @@ app = FastAPI(
     description="Backend service for QuantumCraft: AI-based Quantum Learning Platform"
 )
 
-# Enable CORS for Frontend communication
+# Enable CORS for Frontend communication (Next.js on localhost:3000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],

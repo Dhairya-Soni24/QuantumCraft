@@ -38,9 +38,10 @@
    - `backend/main.py`: CORS middleware, health check endpoint (`/health`), and dynamic router registration.
    - `backend/auth.py`: JWT token verification and dev fallback.
    - `backend/supabase_client.py`: Safe lazy-loaded client leveraging Service Role Key.
-3. **AI Services & AI Tutor Engine (`backend/ai_services.py`)**:
-   - Live **Gemini AI (`gemini-3.6-flash`)** integration with intelligent rule-based offline fallbacks.
+3. **AI Services & AI Tutor Engine (`backend/ai_services.py` & `backend/routers/ai_router.py`)**:
+   - Live **Gemini AI** integration with intelligent rule-based offline fallbacks.
    - `POST /api/v1/ai/chat`: Multi-turn quantum tutor aware of workspace circuit AST, gates, and measurement counts.
+   - `POST /api/v1/ai/chat/stream`: Real-time Server-Sent Events (SSE) token streaming for responsive typing.
    - `POST /api/v1/ai/explain`: Step-by-step mathematical & intuitive circuit explanation.
    - `POST /api/v1/ai/hint`: Progressive challenge guidance.
    - `POST /api/v1/ai/recommend`: Adaptive curriculum recommendations.
@@ -48,24 +49,16 @@
    - `backend/routers/courses_router.py`: `GET /api/v1/courses`, `GET /api/v1/courses/{id}`, `GET /api/v1/courses/{id}/lessons`.
    - `backend/routers/challenges_router.py`: `GET /api/v1/challenges`, `POST /api/v1/challenges/{id}/evaluate` (automated quantum grading).
    - `backend/routers/circuits_router.py`: Full CRUD for user quantum circuits.
+   - `backend/routers/algorithms_router.py`: `GET /api/v1/algorithms/templates` with Qiskit, Cirq, and PennyLane code representations.
+   - `backend/routers/progress_router.py`: `POST /api/v1/progress/complete-lesson`, `GET /api/v1/progress/my-progress`.
+   - `backend/routers/users_router.py`: `GET /api/v1/users/{user_id}/stats` with 52-week activity heatmap.
 5. **Core Quantum Simulator (`backend/simulator.py`)**:
    - AST translation to Qiskit `QuantumCircuit`.
    - Gate support (Single-qubit, two-qubit CX/CZ/SWAP, three-qubit Toffoli, Measurement).
    - Reduced density matrix math via `partial_trace` and single-qubit Bloch vector coordinates $(x, y, z)$.
+   - Multi-framework code generators for Google Cirq and Xanadu PennyLane.
 
-#### ⏳ Remaining Tasks for Dhairya:
-- [ ] **Quantum Algorithm Templates & Multi-Framework Engines *(Reallocated from Het)***:
-  - Add backend algorithmic circuit templates (`GET /api/v1/algorithms/templates`):
-    - **Deutsch-Jozsa Algorithm** (Constant vs Balanced Oracle).
-    - **Grover's Search Algorithm** (Oracle + Diffusion Operator).
-    - **Quantum Teleportation Protocol**.
-    - **Superdense Coding & Quantum Fourier Transform (QFT)**.
-  - Multi-framework translation support (**Cirq** and **PennyLane** code generators/backends in `backend/simulator.py`).
-- [ ] **User Progress & Stats Tracking**:
-  - `POST /api/v1/progress/complete-lesson`: Mark lessons complete and update streak.
-  - `GET /api/v1/users/profile/stats`: Aggregate XP, streak, and activity heatmap data for `/profile`.
-- [ ] **Streaming AI Responses (SSE)**:
-  - Add Server-Sent Events for token-by-token real-time typing in AI tutor chat.
+#### ✅ Dhairya's Backend Status: **100% Completed**
 
 ---
 

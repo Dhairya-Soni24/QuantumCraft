@@ -1,366 +1,365 @@
 import os
 import json
 import asyncio
-from typing import List, Dict, Any, Optional, AsyncGenerator
-try:
-    import google.generativeai as genai
-    GENAI_AVAILABLE = True
-except ImportError:
-    genai = None
-    GENAI_AVAILABLE = False
-
+import logging
+from typing import Dict, Any, List, Optional, AsyncGenerator
 from backend.config import settings
 
-# Configure Gemini Client if API key is present
-GEMINI_KEY = getattr(settings, "GEMINI_API_KEY", None) or os.getenv("GEMINI_API_KEY", "")
-if GEMINI_KEY and GENAI_AVAILABLE:
+logger = logging.getLogger("ai_services")
+
+# List of supported models in priority order for automatic fallback
+CANDIDATE_MODELS = [
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
+    "gemini-3.7-flash"
+]
+
+# Initialize modern Google GenAI Client
+genai_client = None
+if settings.GEMINI_API_KEY and not settings.GEMINI_API_KEY.startswith("your-"):
     try:
-        genai.configure(api_key=GEMINI_KEY)
+        from google import genai
+        genai_client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        logger.info("Google GenAI Client initialized successfully.")
     except Exception as e:
-        print(f"[AIService Warning] Failed to configure Gemini: {e}")
-
-MODEL_NAME = "gemini-3.6-flash"
-
-SYSTEM_PROMPT = """You are QuantumCraft's intelligent AI Quantum Tutor. 
-Guide students through quantum computing concepts (superposition, entanglement, phase, quantum gates, circuits).
-Keep explanations intuitive, concise, mathematically sound, and encouraging.
-If circuit context is provided, tailor your response directly to the student's active qubits and gate sequence."""
-
-# -----------------------------------------------------------------------------
-# Streaming Utilities
-# -----------------------------------------------------------------------------
-def _build_prompt_payload(message: str, history: List[Dict[str, str]], circuit_context: Dict[str, Any]) -> str:
-    prompt_parts = [f"System: {SYSTEM_PROMPT}\n"]
-    if circuit_context:
-        prompt_parts.append(f"Active Circuit State: {json.dumps(circuit_context, indent=2)}\n")
-    for turn in (history or [])[-6:]:
-        role = "Student" if turn.get("role") == "user" else "Tutor"
-        prompt_parts.append(f"{role}: {turn.get('content', '')}")
-    prompt_parts.append(f"Student: {message}\nTutor:")
-    return "\n".join(prompt_parts)
-
-async def _offline_fallback_stream(message: str, circuit_context: Dict[str, Any]) -> AsyncGenerator[str, None]:
-    """Provides a natural token-stream fallback if Gemini is offline or rate-limited."""
-    qubit_count = circuit_context.get("qubit_count", "N/A") if circuit_context else "N/A"
-    sample_text = (
-        f"I see you're working on a circuit with {qubit_count} qubits! "
-        f"Regarding your question ('{message}'): In quantum computing, gates act as unitary "
-        "transformations on complex amplitude vectors. For instance, applying a Hadamard gate creates an "
-        "equal superposition (|0⟩ + |1⟩)/√2, allowing quantum parallelism before measurement."
-    )
-    tokens = sample_text.split(" ")
-    for token in tokens:
-        yield token + " "
-        await asyncio.sleep(0.03)
-
-async def chat_tutor_stream(
-    message: str, 
-    history: List[Dict[str, str]] = None, 
-    circuit_context: Dict[str, Any] = None
-) -> AsyncGenerator[str, None]:
-    """
-    Streams quantum tutor responses token-by-token using gemini-3.6-flash.
-    Falls back gracefully to a simulated token stream if offline.
-    """
-    history = history or []
-    circuit_context = circuit_context or {}
-
-    if not GEMINI_KEY or not GENAI_AVAILABLE:
-        async for chunk in _offline_fallback_stream(message, circuit_context):
-            yield chunk
-        return
-
-    try:
-        model = genai.GenerativeModel(model_name=MODEL_NAME)
-        prompt = _build_prompt_payload(message, history, circuit_context)
-        response = model.generate_content(prompt, stream=True)
-        
-        for chunk in response:
-            if chunk.text:
-                yield chunk.text
-                await asyncio.sleep(0.01)
-    except Exception as e:
-        print(f"[AIService Warning] Streaming Gemini call failed, using fallback stream: {e}")
-        async for chunk in _offline_fallback_stream(message, circuit_context):
-            yield chunk
+        logger.warning(f"Failed to initialize Google GenAI Client: {e}")
+        genai_client = None
 
 
-# -----------------------------------------------------------------------------
-# AIService Class: Full Structured Generation Methods
-# -----------------------------------------------------------------------------
 class AIService:
-    @staticmethod
-    def _get_model():
-        if not GEMINI_KEY or not GENAI_AVAILABLE:
-            return None
-        return genai.GenerativeModel(
-            model_name=MODEL_NAME,
-            generation_config={"temperature": 0.3}
-        )
-
-    # 1. Interactive AI Quantum Tutor Chat (Structured JSON)
     @staticmethod
     async def chat_tutor(
         message: str,
-        history: Optional[List[Dict[str, str]]] = None,
+        history: Optional[List[Dict[str, Any]]] = None,
         circuit_context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
+        """
+        Interactive Quantum AI Tutor answering user questions with live circuit awareness.
+        """
         history = history or []
         circuit_context = circuit_context or {}
 
-        context_str = ""
-        if circuit_context:
-            qubits = circuit_context.get("qubit_count", "unknown")
-            ast = circuit_context.get("circuit_ast", [])
-            counts = circuit_context.get("counts", {})
-            context_str = f"""
-Current Quantum Circuit in Student's Workspace:
-- Number of Qubits: {qubits}
-- Gates Applied (AST): {json.dumps(ast)}
-- Simulation Measurement Counts: {json.dumps(counts)}
-"""
-
-        system_prompt = f"""
-You are "QuantumCraft AI Tutor", an expert, encouraging, and pedagogically sound quantum computing mentor.
-You teach students quantum mechanics and quantum computing principles intuitively and mathematically using Dirac notation ($|0\\rangle, |1\\rangle, |+\\rangle$).
-{context_str}
-
-Guidelines:
-1. Reference the student's active circuit when relevant.
-2. Be concise, clear, and engaging.
-3. Suggest 1-2 interactive follow-up questions or next steps.
-
-Return ONLY a JSON object with this exact structure:
-{{
-    "reply": "Your helpful response in Markdown (supports LaTeX math like $|0\\rangle$)",
-    "suggested_actions": ["Suggestion 1", "Suggestion 2"],
-    "concept_tags": ["superposition", "entanglement"]
-}}
-"""
-        prompt = f"Conversation History:\n{json.dumps(history[-6:] if history else [])}\n\nStudent: {message}"
-
-        try:
-            model = AIService._get_model()
-            if not model:
-                raise ValueError("Gemini API key is not configured.")
-
-            response = await asyncio.to_thread(
-                model.generate_content,
-                f"{system_prompt}\n\n{prompt}",
-                generation_config={"response_mime_type": "application/json"}
+        # 1. Try Gemini LLMs across candidate models
+        if genai_client:
+            from google.genai import types
+            prompt = (
+                "You are the QuantumCraft AI Tutor, an expert quantum computing assistant.\n"
+                f"Active Workspace Circuit Context: {json.dumps(circuit_context)}\n"
+                f"Conversation History: {json.dumps(history[-6:] if history else [])}\n"
+                f"Student Question: {message}\n\n"
+                "Provide a thorough, intuitive, and accurate quantum explanation with Markdown formatting.\n"
+                "If the student asks to explain their circuit, look closely at 'Active Workspace Circuit Context'.\n"
+                "- If gates are present, provide a step-by-step gate breakdown and final state.\n"
+                "- If no gates are placed, explain that all qubits are in the ground state |0...0> and suggest next steps.\n\n"
+                "Respond with a JSON object containing exactly these keys:\n"
+                "- 'reply': Detailed educational response with clear explanations, Dirac notation, and bullet points.\n"
+                "- 'suggested_actions': A list of 2-3 short follow-up question strings.\n"
+                "- 'concept_tags': A list of 2-4 relevant quantum concept tags.\n"
+                "Do not output markdown code blocks around the JSON."
             )
-            return json.loads(response.text)
+            for model_name in CANDIDATE_MODELS:
+                try:
+                    response = await genai_client.aio.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json"
+                        )
+                    )
+                    raw_text = response.text.replace("```json", "").replace("```", "").strip()
+                    parsed = json.loads(raw_text)
+                    if "reply" in parsed:
+                        return {
+                            "reply": parsed.get("reply", ""),
+                            "suggested_actions": parsed.get("suggested_actions", []),
+                            "concept_tags": parsed.get("concept_tags", [])
+                        }
+                except Exception as e:
+                    logger.warning(f"Model {model_name} failed: {e}")
+                    continue
 
-        except Exception as e:
-            print(f"[AIService Warning] Gemini chat failed, using fallback: {e}")
-            return AIService._fallback_chat(message, circuit_context)
+        # 2. Comprehensive Rule-Based Fallback Engine (Works offline / when quota is exceeded)
+        return AIService._fallback_chat(message, circuit_context)
 
-    # 2. Step-by-Step Circuit Explainer
     @staticmethod
     async def explain_circuit(
-        circuit_ast: List[Dict[str, Any]],
         qubit_count: int,
-        state_vector: Optional[List[List[float]]] = None,
-        counts: Optional[Dict[str, int]] = None
+        circuit_ast: List[Dict[str, Any]],
+        state_vector: Optional[List[Any]] = None,
+        counts: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        prompt = f"""
-Analyze this quantum circuit and explain its operation step-by-step:
-- Qubits: {qubit_count}
-- Circuit Instructions (AST): {json.dumps(circuit_ast)}
-- Final State Vector: {json.dumps(state_vector if state_vector else [])}
-- Measurement Probabilities/Counts: {json.dumps(counts if counts else {})}
+        """
+        Provides step-by-step mathematical and intuitive explanation of a quantum circuit.
+        """
+        circuit_context = {
+            "qubit_count": qubit_count,
+            "circuit_ast": circuit_ast,
+            "state_vector": state_vector,
+            "counts": counts
+        }
 
-Return ONLY a JSON object with this exact schema:
-{{
-    "title": "Short descriptive title of what this circuit creates (e.g. Bell State Generator)",
-    "summary": "High-level summary of the circuit's purpose and quantum effects",
-    "step_by_step": [
-        {{
-            "step": 1,
-            "gate": "H on qubit 0",
-            "effect": "Puts qubit 0 into equal superposition (|0> + |1>)/sqrt(2)",
-            "state_after": "(|00> + |10>)/sqrt(2)"
-        }}
-    ],
-    "quantum_phenomena": ["superposition", "entanglement", "phase shift"],
-    "dirac_notation": "|\\psi\\rangle = \\frac{{|00\\rangle + |11\\rangle}}{{\\sqrt{{2}}}}",
-    "key_takeaways": [
-        "Key takeaway 1",
-        "Key takeaway 2"
-    ]
-}}
-"""
-
-        try:
-            model = AIService._get_model()
-            if not model:
-                raise ValueError("Gemini API key is not configured.")
-
-            response = await asyncio.to_thread(
-                model.generate_content,
-                prompt,
-                generation_config={"response_mime_type": "application/json"}
+        if genai_client:
+            from google.genai import types
+            prompt = (
+                "You are the QuantumCraft Circuit Explainer. Analyze the following quantum circuit:\n"
+                f"{json.dumps(circuit_context)}\n\n"
+                "Return a JSON object with keys:\n"
+                "- 'summary': High-level intuitive summary of what this circuit does.\n"
+                "- 'step_by_step': An array of strings describing each gate execution in order.\n"
+                "- 'mathematical_state': Latex/Dirac representation of the final quantum state.\n"
+                "- 'key_takeaways': An array of key quantum concepts demonstrated by this circuit."
             )
-            return json.loads(response.text)
+            for model_name in CANDIDATE_MODELS:
+                try:
+                    response = await genai_client.aio.models.generate_content(
+                        model=model_name,
+                        contents=prompt,
+                        config=types.GenerateContentConfig(
+                            response_mime_type="application/json"
+                        )
+                    )
+                    raw_text = response.text.replace("```json", "").replace("```", "").strip()
+                    return json.loads(raw_text)
+                except Exception as e:
+                    logger.warning(f"Explain with {model_name} failed: {e}")
+                    continue
 
-        except Exception as e:
-            print(f"[AIService Warning] Gemini explain failed, using fallback: {e}")
-            return AIService._fallback_explain(circuit_ast, qubit_count, counts)
+        return AIService._fallback_explain(qubit_count, circuit_ast, counts)
 
-    # 3. Progressive Challenge Hint Generator
     @staticmethod
-    async def generate_hint(
-        challenge_title: str,
-        challenge_description: str,
-        target_state: Optional[str] = None,
-        current_circuit: Optional[Dict[str, Any]] = None
+    async def get_challenge_hint(
+        challenge_id: str,
+        current_ast: List[Dict[str, Any]],
+        attempt_count: int = 1
     ) -> Dict[str, Any]:
-        current_circuit = current_circuit or {}
-        prompt = f"""
-You are a Quantum Computing Challenge Tutor. A student is working on a challenge:
-- Challenge Title: {challenge_title}
-- Description: {challenge_description}
-- Target State / Goal: {target_state or "Target quantum state"}
-- Student's Current Circuit: {json.dumps(current_circuit)}
+        hints_map = {
+            "chal-001": [
+                {
+                    "hint_level": 1,
+                    "hint": "To create entanglement (|Φ⁺⟩), you first need to place the control qubit (Qubit 0) into an equal superposition.",
+                    "suggested_gate": "H",
+                    "concept": "Superposition via Hadamard"
+                },
+                {
+                    "hint_level": 2,
+                    "hint": "After applying H to Qubit 0, you need a two-qubit gate to entangle Qubit 0 and Qubit 1.",
+                    "suggested_gate": "CX",
+                    "concept": "Controlled-NOT (CNOT) Entanglement"
+                },
+                {
+                    "hint_level": 3,
+                    "hint": "Place an H gate on Qubit 0, followed by a CX (CNOT) gate with control on Qubit 0 and target on Qubit 1.",
+                    "suggested_gate": "CX(0, 1)",
+                    "concept": "Bell State Synthesis"
+                }
+            ],
+            "chal-002": [
+                {
+                    "hint_level": 1,
+                    "hint": "The ground state |0⟩ needs to be flipped to |1⟩. Think about the quantum equivalent of a classical NOT gate.",
+                    "suggested_gate": "X",
+                    "concept": "Pauli-X Bit Flip"
+                },
+                {
+                    "hint_level": 2,
+                    "hint": "Apply a Pauli-X gate directly to Qubit 0 to transform |0⟩ into |1⟩.",
+                    "suggested_gate": "X",
+                    "concept": "Single Qubit Gate"
+                }
+            ]
+        }
 
-Provide a helpful, pedagogical hint that guides their intuition without immediately giving away the entire solution.
+        challenge_hints = hints_map.get(challenge_id, [
+            {
+                "hint_level": 1,
+                "hint": "Review the required target state and consider which single-qubit or two-qubit gates manipulate the amplitudes accordingly.",
+                "suggested_gate": None,
+                "concept": "Quantum Circuit Synthesis"
+            }
+        ])
 
-Return ONLY a JSON object with this structure:
-{{
-    "hint": "Clear, encouraging hint guiding the next gate or concept to think about",
-    "suggested_gate": "H | X | CX | CZ | None",
-    "level": "gentle | moderate | direct",
-    "conceptual_question": "A leading question to help the student deduce the answer"
-}}
-"""
+        idx = min(attempt_count - 1, len(challenge_hints) - 1)
+        if idx < 0:
+            idx = 0
+        return challenge_hints[idx]
 
-        try:
-            model = AIService._get_model()
-            if not model:
-                raise ValueError("Gemini API key is not configured.")
+    @staticmethod
+    async def recommend_learning_path(
+        user_id: Optional[str] = None,
+        completed_lessons: Optional[List[str]] = None,
+        solved_challenges: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        completed = completed_lessons or []
+        solved = solved_challenges or []
 
-            response = await asyncio.to_thread(
-                model.generate_content,
-                prompt,
-                generation_config={"response_mime_type": "application/json"}
-            )
-            return json.loads(response.text)
-
-        except Exception as e:
-            print(f"[AIService Warning] Gemini hint failed, using fallback: {e}")
+        if not completed and not solved:
             return {
-                "hint": f"To reach the target state for '{challenge_title}', examine which qubits require superposition (Hadamard) and which require conditional entanglement (CNOT).",
-                "suggested_gate": "H",
-                "level": "gentle",
-                "conceptual_question": "Does your circuit need to create equal probability amplitudes across multiple basis states?"
+                "recommended_course_id": "c-001",
+                "recommended_lesson_id": "l-001",
+                "next_challenge_id": "chal-001",
+                "reason": "Start your quantum journey with Qubit Fundamentals & Superposition!",
+                "focus_areas": ["Qubit basics", "Superposition", "Hadamard gate"]
+            }
+        elif len(solved) < 2:
+            return {
+                "recommended_course_id": "c-001",
+                "recommended_lesson_id": "l-002",
+                "next_challenge_id": "chal-002",
+                "reason": "You're progressing well with basic gates! Try bit flips and phase manipulation next.",
+                "focus_areas": ["Pauli gates", "Bit flip", "Phase flips"]
+            }
+        else:
+            return {
+                "recommended_course_id": "c-002",
+                "recommended_lesson_id": "l-003",
+                "next_challenge_id": "chal-003",
+                "reason": "Ready for multi-qubit algorithms! Explore Deutsch-Jozsa and Grover's search algorithm.",
+                "focus_areas": ["Quantum Oracles", "Amplitude Amplification", "Grover Search"]
             }
 
-    # 4. Learning Path Recommendations
-    @staticmethod
-    async def recommend_next_steps(
-        completed_lessons: list,
-        recent_quiz_scores: list,
-        failed_challenges: list
-    ) -> Dict[str, Any]:
-        prompt = f"""
-You are an AI Quantum Computing Tutor. Analyze the student's learning progress and suggest next steps.
-
-Student Progress Data:
-- Completed Lessons: {completed_lessons}
-- Recent Quiz Scores: {recent_quiz_scores}
-- Failed Challenges: {failed_challenges}
-
-Return ONLY a JSON object with this exact structure:
-{{
-    "recommendation_reasoning": "Clear brief explanation based on performance",
-    "next_steps": [
-        {{
-            "type": "review_lesson | new_lesson | practice_challenge",
-            "lesson_id": "string_or_id",
-            "title": "Title of step"
-        }}
-    ]
-}}
-"""
-
-        try:
-            model = AIService._get_model()
-            if not model:
-                raise ValueError("Gemini API key is not configured.")
-
-            response = await asyncio.to_thread(
-                model.generate_content,
-                prompt,
-                generation_config={"response_mime_type": "application/json"}
-            )
-            return json.loads(response.text)
-
-        except Exception as e:
-            print(f"[AIService Warning] Gemini recommendation failed, falling back to rules: {e}")
-            fallback_steps = []
-            if failed_challenges:
-                fallback_steps.append({
-                    "type": "practice_challenge",
-                    "lesson_id": failed_challenges[0],
-                    "title": f"Retry Challenge: {failed_challenges[0]}"
-                })
-            
-            fallback_steps.append({
-                "type": "new_lesson",
-                "lesson_id": "lesson-next",
-                "title": "Continue to Core Quantum Superposition & Entanglement"
-            })
-            
-            return {
-                "recommendation_reasoning": "Standard curriculum progression recommendation generated by QuantumCraft Tutor.",
-                "next_steps": fallback_steps
-            }
-
-    # 5. Offline Fallbacks
     @staticmethod
     def _fallback_chat(message: str, circuit_context: Dict[str, Any]) -> Dict[str, Any]:
         msg = message.lower()
         ast = circuit_context.get("circuit_ast", [])
+        qubits = circuit_context.get("qubit_count", 2)
         has_h = any(g.get("gate", "").lower() == "h" for g in ast)
         has_cx = any(g.get("gate", "").lower() in ["cx", "cnot"] for g in ast)
 
-        if "bell state" in msg or (has_h and has_cx):
+        if "circuit" in msg and ("explain" in msg or "what" in msg or "how" in msg or "describe" in msg or "analyze" in msg):
+            if not ast or len(ast) == 0:
+                reply = (
+                    f"Your workspace currently has **{qubits} quantum wires** in the default ground state (**|{'0'*qubits}⟩**), with **no gates placed yet**.\n\n"
+                    "👉 **How to build your circuit:**\n"
+                    "1. Drag a **Hadamard (H)** gate from the Gate Library onto Qubit 0 to create a 50/50 superposition.\n"
+                    "2. Drag a **CNOT (CX)** gate from Qubit 0 to Qubit 1 to create an entangled **Bell State**.\n"
+                    "3. Click **Run Simulation** to measure the quantum probabilities!"
+                )
+                actions = ["How do I create a Bell state?", "What is a Hadamard gate?", "Explain Superposition"]
+                tags = ["ground-state", "empty-circuit", "getting-started"]
+            else:
+                explain_res = AIService._fallback_explain(qubits, ast)
+                gate_summary = ", ".join([f"{g.get('gate', '').upper()} on q{g.get('targets', [0])[0]}" for g in ast])
+                reply = (
+                    f"### 🔬 Circuit Analysis ({qubits} Qubits, {len(ast)} Gates)\n\n"
+                    f"**Summary:** {explain_res['summary']}\n\n"
+                    f"**Placed Operations:** {gate_summary}\n\n"
+                    f"**Step-by-Step Execution:**\n" +
+                    "\n".join([f"• {step}" for step in explain_res['step_by_step']]) +
+                    f"\n\n**Theoretical Final State:** $${explain_res['mathematical_state']}$$\n\n"
+                    f"**Key Concepts:** {', '.join(explain_res['key_takeaways'])}"
+                )
+                actions = ["Run Simulation", "What is the Bloch vector for this?", "How to add measurement?"]
+                tags = ["circuit-explanation", "step-by-step", "analysis"]
+            return {
+                "reply": reply,
+                "suggested_actions": actions,
+                "concept_tags": tags
+            }
+
+        elif "qubit" in msg or "cubit" in msg or "quantum bit" in msg:
             reply = (
-                "You are working with a **Bell State** ($|\\Phi^+\\rangle = \\frac{|00\\rangle + |11\\rangle}{\\sqrt{2}}$)! "
+                "A **Qubit (Quantum Bit)** is the fundamental unit of quantum information:\n\n"
+                "• **Classical Bit vs Qubit:** A classical bit can only be in one state at a time (`0` or `1`). A qubit can exist in a linear combination of both states simultaneously: **|ψ⟩ = α|0⟩ + β|1⟩** (where |α|² + |β|² = 1).\n"
+                "• **Superposition:** Allows $N$ qubits to represent $2^N$ states simultaneously.\n"
+                "• **Entanglement:** Two or more qubits can be strongly correlated such that measuring one instantly dictates the other.\n"
+                "• **Bloch Sphere:** Single qubits are geometrically visualized on the 3D unit Bloch sphere."
+            )
+            actions = ["Explain Superposition", "What is the Bloch Sphere?", "How does a Hadamard gate create a qubit state?"]
+            tags = ["qubit", "quantum-basics", "superposition"]
+        elif "bell state" in msg or (has_h and has_cx and "explain" in msg):
+            reply = (
+                "You are working with a **Bell State** (|Φ⁺⟩ = (|00⟩ + |11⟩)/√2)!\n\n"
                 "By applying a **Hadamard (H)** gate to qubit 0 followed by a **CNOT (CX)** gate from qubit 0 to qubit 1, "
-                "you create maximum quantum entanglement. Measuring qubit 0 immediately determines the state of qubit 1."
+                "you create maximum quantum entanglement. Measuring qubit 0 immediately determines the state of qubit 1 with 100% correlation."
             )
-            actions = ["Explain Quantum Teleportation", "How to create |Ψ⁺⟩ Bell state?"]
+            actions = ["Explain Quantum Teleportation", "How to create |Ψ⁺⟩ Bell state?", "Run Simulation"]
             tags = ["entanglement", "bell-state", "superposition"]
-        elif "hadamard" in msg or "superposition" in msg:
+        elif "hadamard" in msg or "superposition" in msg or " h " in f" {msg} ":
             reply = (
-                "The **Hadamard gate ($H$)** transforms the computational basis states into equal superposition states:\n\n"
-                "$$H|0\\rangle = |+\\rangle = \\frac{|0\\rangle + |1\\rangle}{\\sqrt{2}}$$\n\n"
-                "When measured, it yields a 50% probability of collapsing into $|0\\rangle$ and 50% into $|1\\rangle$."
+                "The **Hadamard gate (H)** transforms computational basis states into equal superpositions:\n\n"
+                "• H|0⟩ = |+⟩ = (|0⟩ + |1⟩)/√2\n"
+                "• H|1⟩ = |−⟩ = (|0⟩ − |1⟩)/√2\n\n"
+                "When measured, a qubit in state |+⟩ yields a 50% chance of 0 and a 50% chance of 1."
             )
-            actions = ["Add CNOT to create Entanglement", "What is Phase Kickback?"]
+            actions = ["Add CNOT to create Entanglement", "What is Phase Kickback?", "Simulate Hadamard"]
             tags = ["hadamard", "superposition", "probability"]
+        elif "pauli" in msg or "bit flip" in msg or "not gate" in msg or " x gate" in msg:
+            reply = (
+                "The **Pauli-X gate** acts as the quantum NOT gate (Bit Flip):\n\n"
+                "• X|0⟩ = |1⟩\n"
+                "• X|1⟩ = |0⟩\n\n"
+                "On the Bloch Sphere, it represents a 180° (π radians) rotation around the X-axis."
+            )
+            actions = ["What is Pauli-Y and Pauli-Z?", "How does X affect superposition?", "Explain Phase Flip"]
+            tags = ["pauli-x", "bit-flip", "single-qubit-gates"]
+        elif "pauli-z" in msg or "phase flip" in msg or " z gate" in msg:
+            reply = (
+                "The **Pauli-Z gate** performs a Phase Flip:\n\n"
+                "• Z|0⟩ = |0⟩\n"
+                "• Z|1⟩ = −|1⟩\n\n"
+                "It leaves |0⟩ unchanged while inverting the relative phase of |1⟩. On |+⟩, Z|+⟩ = |−⟩."
+            )
+            actions = ["What is Phase Kickback?", "Explain S and T gates", "Difference between X and Z"]
+            tags = ["pauli-z", "phase-flip", "relative-phase"]
         elif "cnot" in msg or "cx" in msg or "entanglement" in msg:
             reply = (
-                "The **Controlled-NOT ($CX$)** gate flips the target qubit if and only if the control qubit is in state $|1\\rangle$. "
-                "When combined with superposition on the control qubit, it produces quantum entanglement!"
+                "The **Controlled-NOT (CX)** gate flips the target qubit if and only if the control qubit is in state |1⟩:\n\n"
+                "• CX|00⟩ = |00⟩\n"
+                "• CX|10⟩ = |11⟩\n\n"
+                "When the control qubit is in superposition, CX creates quantum entanglement between the qubits."
             )
-            actions = ["Run simulation shots", "How does measurement affect entanglement?"]
+            actions = ["How does measurement affect entanglement?", "Explain CZ and SWAP gates", "What is Toffoli gate?"]
             tags = ["cnot", "entanglement", "two-qubit-gates"]
-        elif "measure" in msg or "collapse" in msg:
+        elif "teleportation" in msg or "teleport" in msg:
             reply = (
-                "**Measurement** forces a delicate quantum superposition to instantaneously collapse into one of the definite "
-                "basis eigenstates ($|0\\rangle$ or $|1\\rangle$) governed by the Born Rule ($P(x) = |\\alpha_x|^2$)."
+                "**Quantum Teleportation** transmits an unknown quantum state |ψ⟩ from Alice to Bob using an entangled Bell pair and 2 classical bits:\n\n"
+                "1. Alice and Bob share an entangled pair (|Φ⁺⟩).\n"
+                "2. Alice performs a Bell measurement on |ψ⟩ and her half of the pair.\n"
+                "3. Alice transmits 2 classical bits to Bob.\n"
+                "4. Bob applies correction gates (X, Z) to recover the exact state |ψ⟩."
             )
-            actions = ["Why are multiple shots needed?", "What is a Statevector?"]
+            actions = ["Load Teleportation Template", "Why can't we clone quantum states?", "Explain No-Cloning Theorem"]
+            tags = ["teleportation", "bell-measurement", "quantum-protocols"]
+        elif "grover" in msg or "search" in msg:
+            reply = (
+                "**Grover's Algorithm** provides a quadratic speedup for searching an unsorted database of N items in O(√N) evaluations.\n\n"
+                "It works in two repeated phases:\n"
+                "1. **Oracle (O_f)**: Flips the phase of the target state (marks the solution).\n"
+                "2. **Diffusion Operator (D)**: Inverts all amplitudes about the average, amplifying the marked state's probability."
+            )
+            actions = ["Load Grover 2-Qubit Template", "What is an Oracle?", "Explain Amplitude Amplification"]
+            tags = ["grover", "amplitude-amplification", "quantum-search"]
+        elif "deutsch" in msg or "jozsa" in msg:
+            reply = (
+                "The **Deutsch-Jozsa Algorithm** determines whether a function f(x) is constant (same output for all inputs) "
+                "or balanced (0 for half, 1 for half) with just **a single quantum query**, compared to 2^(n-1)+1 classical queries!"
+            )
+            actions = ["Load Deutsch-Jozsa Template", "What is Phase Kickback?", "How does Interference work?"]
+            tags = ["deutsch-jozsa", "quantum-advantage", "oracles"]
+        elif "bloch" in msg or "sphere" in msg:
+            reply = (
+                "The **Bloch Sphere** is a geometric representation of a single qubit state |ψ⟩ = cos(θ/2)|0⟩ + e^(iφ)sin(θ/2)|1⟩ on a unit 3D sphere:\n\n"
+                "• North Pole (z=+1): |0⟩\n"
+                "• South Pole (z=-1): |1⟩\n"
+                "• Equator: Superposition states (|+⟩ at +x, |−⟩ at -x, |+i⟩ at +y, |−i⟩ at -y)."
+            )
+            actions = ["View Bloch Sphere Visualizer", "Explain Rotation Gates (Rx, Ry, Rz)", "What is Density Matrix?"]
+            tags = ["bloch-sphere", "geometry", "qubit-visualization"]
+        elif "measure" in msg or "collapse" in msg or "born rule" in msg:
+            reply = (
+                "**Measurement** forces a quantum superposition to instantaneously collapse into a definite basis state (|0⟩ or |1⟩).\n\n"
+                "According to the **Born Rule**, the probability of measuring state |i⟩ is P(i) = |⟨i|ψ⟩|² (the squared magnitude of its amplitude)."
+            )
+            actions = ["Why are multiple simulation shots needed?", "What is a Statevector?", "Explain Decoherence"]
             tags = ["measurement", "born-rule", "wavefunction-collapse"]
         else:
             reply = (
-                f"Hello! I am your **QuantumCraft AI Tutor**. I see your workspace has {circuit_context.get('qubit_count', 2)} qubits. "
-                "Feel free to ask me about quantum gates (H, X, Y, Z, CNOT), Dirac bra-ket notation, superposition, or quantum algorithms!"
+                f"Hello! I am your **QuantumCraft AI Tutor**. I see your workspace currently has {qubits} qubits.\n\n"
+                "Feel free to ask me about quantum gates (H, X, Y, Z, CNOT, CZ), superposition, entanglement, "
+                "Dirac bra-ket notation, or quantum algorithms like Grover's and Deutsch-Jozsa!"
             )
-            actions = ["How do I create a Bell state?", "Explain Superposition"]
-            tags = ["quantum-basics", "tutor"]
+            actions = ["What is a qubit?", "How do I create a Bell state?", "Explain Superposition"]
+            tags = ["quantum-basics", "tutor", "getting-started"]
 
         return {
             "reply": reply,
@@ -369,52 +368,95 @@ Return ONLY a JSON object with this exact structure:
         }
 
     @staticmethod
-    def _fallback_explain(circuit_ast: List[Dict[str, Any]], qubit_count: int, counts: Optional[Dict[str, int]]) -> Dict[str, Any]:
-        has_h = any(g.get("gate", "").lower() == "h" for g in circuit_ast)
-        has_cx = any(g.get("gate", "").lower() in ["cx", "cnot"] for g in circuit_ast)
+    def _fallback_explain(qubit_count: int, circuit_ast: List[Dict[str, Any]], counts: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        if not circuit_ast:
+            return {
+                "summary": f"An empty {qubit_count}-qubit circuit in the ground state |{'0'*qubit_count}⟩.",
+                "step_by_step": ["Circuit initialized in ground state |0...0⟩."],
+                "mathematical_state": f"|{'0'*qubit_count}\\rangle",
+                "key_takeaways": ["Qubits default to the |0⟩ basis state."]
+            }
 
         steps = []
         for i, g in enumerate(circuit_ast):
-            gate_name = g.get("gate", "").upper()
+            gate = g.get("gate", "").upper()
             targets = g.get("targets", [])
-            steps.append({
-                "step": i + 1,
-                "gate": f"{gate_name} on qubit(s) {targets}",
-                "effect": f"Applies {gate_name} unitary operator on target {targets}",
-                "state_after": "Transformed quantum state"
-            })
+            t_str = ", ".join(f"q{t}" for t in targets)
+            steps.append(f"Step {i+1}: Apply {gate} gate to {t_str}")
+
+        has_h = any(g.get("gate", "").lower() == "h" for g in circuit_ast)
+        has_cx = any(g.get("gate", "").lower() in ["cx", "cnot"] for g in circuit_ast)
 
         if has_h and has_cx:
-            title = "Bell State Generator (Maximally Entangled Pair)"
-            summary = "This circuit creates a canonical Bell State (|Φ⁺⟩) through single-qubit superposition followed by two-qubit conditional entanglement."
-            phenomena = ["superposition", "entanglement"]
-            dirac = "|\\Phi^+\\rangle = \\frac{|00\\rangle + |11\\rangle}{\\sqrt{2}}"
-            takeaways = [
-                "The H gate creates an equal superposition on qubit 0.",
-                "The CX gate correlates qubit 1 with qubit 0, destroying separable product state into an entangled state."
-            ]
+            summary = "This circuit creates an entangled Bell State (|Φ⁺⟩) between qubits using a Hadamard and CNOT gate."
+            math_state = r"\frac{1}{\sqrt{2}}(|00\rangle + |11\rangle)"
+            takeaways = ["Quantum Superposition", "Quantum Entanglement", "Maximally Entangled Basis"]
         elif has_h:
-            title = "Quantum Superposition State"
-            summary = "This circuit applies Hadamard gate(s) to create unbiased quantum superpositions across basis states."
-            phenomena = ["superposition"]
-            dirac = "|+\\rangle = \\frac{|0\\rangle + |1\\rangle}{\\sqrt{2}}"
-            takeaways = [
-                "Measurement will collapse the state into definite basis outcomes with equal probability."
-            ]
+            summary = "This circuit creates a superposition state across the computational basis."
+            math_state = r"\frac{1}{\sqrt{2}}(|0\rangle + |1\rangle)"
+            takeaways = ["Superposition", "Hadamard Transformation", "Equal Probability Amplitudes"]
         else:
-            title = "Quantum Circuit Transformation"
-            summary = f"A {qubit_count}-qubit quantum circuit applying {len(circuit_ast)} quantum gate instruction(s)."
-            phenomena = ["deterministic transformation"]
-            dirac = "|\\psi\\rangle"
-            takeaways = [
-                "Unitary operations evolve the quantum state deterministically."
-            ]
+            summary = f"This circuit applies {len(circuit_ast)} quantum operations to {qubit_count} qubits."
+            math_state = r"|\psi\rangle"
+            takeaways = ["Unitary Transformation", "Basis State Manipulation"]
 
         return {
-            "title": title,
             "summary": summary,
             "step_by_step": steps,
-            "quantum_phenomena": phenomena,
-            "dirac_notation": dirac,
+            "mathematical_state": math_state,
             "key_takeaways": takeaways
         }
+
+
+async def chat_tutor_stream(
+    message: str,
+    history: Optional[List[Dict[str, Any]]] = None,
+    circuit_context: Optional[Dict[str, Any]] = None
+) -> AsyncGenerator[str, None]:
+    """
+    Asynchronous token-by-token streaming generator for SSE events.
+    Yields data: {"token": "..."}\n\n and ends with data: [DONE]\n\n
+    """
+    history = history or []
+    circuit_context = circuit_context or {}
+
+    # 1. Try Gemini streaming across candidate models
+    stream_successful = False
+    if genai_client:
+        prompt = (
+            "You are the QuantumCraft AI Tutor, an expert quantum computing assistant.\n"
+            f"Active Workspace Circuit Context: {json.dumps(circuit_context)}\n"
+            f"Conversation History: {json.dumps(history[-6:] if history else [])}\n"
+            f"Student Question: {message}\n\n"
+            "Provide a direct, thorough, and clear explanation in markdown with clear steps and formulas."
+        )
+        for model_name in CANDIDATE_MODELS:
+            try:
+                response_stream = await genai_client.aio.models.generate_content_stream(
+                    model=model_name,
+                    contents=prompt
+                )
+                async for chunk in response_stream:
+                    if chunk.text:
+                        token_data = json.dumps({"token": chunk.text})
+                        yield f"data: {token_data}\n\n"
+                        await asyncio.sleep(0.005)
+                stream_successful = True
+                break
+            except Exception as e:
+                logger.warning(f"Streaming with {model_name} failed: {e}")
+                continue
+
+    # 2. Fallback streaming if offline / quota exceeded
+    if not stream_successful:
+        fallback_res = AIService._fallback_chat(message, circuit_context)
+        reply_text = fallback_res["reply"]
+        words = reply_text.split(" ")
+        for i, word in enumerate(words):
+            token = word + (" " if i < len(words) - 1 else "")
+            token_data = json.dumps({"token": token})
+            yield f"data: {token_data}\n\n"
+            await asyncio.sleep(0.015)
+
+    # Final event marking completion
+    yield "data: [DONE]\n\n"

@@ -13,26 +13,32 @@ payload = {
     }
 }
 
-print("Initiating streaming request to AI Quantum Tutor...\n---")
+def main():
+    print("Initiating streaming request to AI Quantum Tutor...\n---")
+    try:
+        with httpx.Client(timeout=30.0) as client:
+            with client.stream("POST", URL, json=payload) as response:
+                if response.status_code != 200:
+                    print(f"Failed with status {response.status_code}")
+                    sys.exit(1)
 
-with httpx.Client(timeout=30.0) as client:
-    with client.stream("POST", URL, json=payload) as response:
-        if response.status_code != 200:
-            print(f"Failed with status {response.status_code}")
-            sys.exit(1)
+                for line in response.iter_lines():
+                    if not line:
+                        continue
+                    if line.startswith("data: "):
+                        data_str = line[6:].strip()
+                        if data_str == "[DONE]":
+                            print("\n---\nStream finished successfully ([DONE]).")
+                            break
+                        try:
+                            data_obj = json.loads(data_str)
+                            if "token" in data_obj:
+                                sys.stdout.write(data_obj["token"])
+                                sys.stdout.flush()
+                        except json.JSONDecodeError:
+                            pass
+    except httpx.ConnectError:
+        print("Note: Start FastAPI backend server first (uvicorn backend.main:app --reload) to run this test script.")
 
-        for line in response.iter_lines():
-            if not line:
-                continue
-            if line.startswith("data: "):
-                data_str = line[6:].strip()
-                if data_str == "[DONE]":
-                    print("\n---\nStream finished successfully ([DONE]).")
-                    break
-                try:
-                    data_obj = json.loads(data_str)
-                    if "token" in data_obj:
-                        sys.stdout.write(data_obj["token"])
-                        sys.stdout.flush()
-                except json.JSONDecodeError:
-                    pass
+if __name__ == "__main__":
+    main()

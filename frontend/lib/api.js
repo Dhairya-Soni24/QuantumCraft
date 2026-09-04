@@ -32,12 +32,17 @@ export async function runSimulation(astPayload) {
  */
 export async function sendTutorMessage(message, history = [], circuitContext = {}) {
   try {
+    const cleanHistory = (history || []).map((h) => ({
+      role: h.role || "user",
+      content: typeof h.content === "string" ? h.content : "",
+    }));
+
     const res = await fetch(`${API_BASE_URL}/api/v1/ai/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         message,
-        history,
+        history: cleanHistory,
         circuit_context: circuitContext,
       }),
     });
@@ -50,6 +55,77 @@ export async function sendTutorMessage(message, history = [], circuitContext = {
     return await res.json();
   } catch (error) {
     console.error("API Error [sendTutorMessage]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Stream message from context-aware AI Quantum Tutor via Server-Sent Events (SSE).
+ * @param {string} message - Student prompt
+ * @param {Array} history - Previous chat turns
+ * @param {Object} circuitContext - Active workspace AST and counts
+ * @param {Function} onToken - Callback for each streamed token (text chunk)
+ * @param {Function} onComplete - Callback when stream completes
+ * @param {Function} onError - Callback on error
+ */
+export async function streamTutorMessage(message, history = [], circuitContext = {}, onToken, onComplete, onError) {
+  try {
+    const cleanHistory = (history || []).map((h) => ({
+      role: h.role || "user",
+      content: typeof h.content === "string" ? h.content : "",
+    }));
+
+    const res = await fetch(`${API_BASE_URL}/api/v1/ai/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message,
+        history: cleanHistory,
+        circuit_context: circuitContext,
+      }),
+    });
+
+    if (!res.ok) {
+      throw new Error(`AI Stream error ${res.status}`);
+    }
+
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder("utf-8");
+    let accumulated = "";
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split("\n");
+
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        if (line.startsWith("data: ")) {
+          const dataStr = line.slice(6).trim();
+          if (dataStr === "[DONE]") {
+            if (onComplete) onComplete(accumulated);
+            return accumulated;
+          }
+          try {
+            const parsed = JSON.parse(dataStr);
+            if (parsed.token) {
+              accumulated += parsed.token;
+              if (onToken) onToken(parsed.token, accumulated);
+            }
+          } catch {
+            // Ignored non-JSON heartbeat
+          }
+        }
+      }
+    }
+
+    if (onComplete) onComplete(accumulated);
+    return accumulated;
+  } catch (error) {
+    console.error("API Error [streamTutorMessage]:", error);
+    if (onError) onError(error);
     throw error;
   }
 }
@@ -115,6 +191,50 @@ export async function explainCircuit(circuitAst, stateVector = null, counts = nu
     return await res.json();
   } catch (error) {
     console.error("API Error [explainCircuit]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Request progressive hints for a quantum challenge from AI.
+ */
+export async function getChallengeHint(challengeId, currentAst = [], attemptCount = 1) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/ai/hint`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        challenge_id: challengeId,
+        current_ast: currentAst,
+        attempt_count: attemptCount,
+      }),
+    });
+    if (!res.ok) throw new Error(`Challenge hint failed (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [getChallengeHint]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Request personalized curriculum recommendations.
+ */
+export async function getCurriculumRecommendations(userId, completedLessons = [], solvedChallenges = []) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/ai/recommend`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        user_id: userId,
+        completed_lessons: completedLessons,
+        solved_challenges: solvedChallenges,
+      }),
+    });
+    if (!res.ok) throw new Error(`Curriculum recommendation failed (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [getCurriculumRecommendations]:", error);
     throw error;
   }
 }

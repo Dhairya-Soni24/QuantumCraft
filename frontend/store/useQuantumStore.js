@@ -32,8 +32,14 @@ export function normalizeGateName(rawName) {
   return name;
 }
 
+const defaultInitialNodes = astToReactFlowNodes(
+  { qubit_count: 2, circuit_ast: [] },
+  LANE_HEIGHT,
+  GRID_SIZE
+);
+
 export const useQuantumStore = create((set, get) => ({
-  nodes: [],
+  nodes: defaultInitialNodes,
   edges: [],
   selectedFramework: "qiskit",
   shots: 1024,
@@ -98,7 +104,6 @@ export const useQuantumStore = create((set, get) => ({
 
       const nextState = { nodes: updatedNodes };
       if (!state.isSyncingFromCode) {
-        // Calculate new AST and generate updated code
         const wires = wireNodes(updatedNodes);
         const numQubits = Math.max(wires.length, 1);
         const gateList = gateNodes(updatedNodes).sort((a, b) =>
@@ -114,7 +119,9 @@ export const useQuantumStore = create((set, get) => ({
           if (Array.isArray(node.data?.targets)) {
             targets = node.data.targets;
           } else if (["cx", "cz", "swap"].includes(gname)) {
-            targets = typeof node.data?.controlQubit === "number" ? [node.data.controlQubit, targetQubit] : [0, 1];
+            targets = typeof node.data?.controlQubit === "number" ? [node.data.controlQubit, targetQubit] : (targetQubit === 0 ? [0, 1] : [targetQubit - 1, targetQubit]);
+          } else if (gname === "ccx") {
+            targets = targetQubit >= 2 ? [targetQubit - 2, targetQubit - 1, targetQubit] : (numQubits >= 3 ? [0, 1, 2] : [targetQubit, targetQubit, targetQubit]);
           } else {
             targets = [targetQubit];
           }
@@ -160,7 +167,7 @@ export const useQuantumStore = create((set, get) => ({
   removeWire: () =>
     set((state) => {
       const wires = wireNodes(state.nodes);
-      if (!wires.length) return state;
+      if (wires.length <= 1) return state;
 
       const lastWire = wires[wires.length - 1];
       const remainingNodes = state.nodes.filter(
@@ -168,7 +175,7 @@ export const useQuantumStore = create((set, get) => ({
           node.id !== lastWire.id &&
           !(
             node.type === "gate" &&
-            Math.round(node.position.y / LANE_HEIGHT) === wires.length - 1
+            Math.round(node.position.y / LANE_HEIGHT) >= wires.length - 1
           )
       );
       const remainingWires = wireNodes(remainingNodes);
@@ -176,6 +183,37 @@ export const useQuantumStore = create((set, get) => ({
       const newCode = generateQiskitCode({ qubit_count: numQubits, circuit_ast: get().getCircuitAST().circuit_ast });
 
       return { nodes: remainingNodes, codeText: newCode };
+    }),
+
+  deleteGate: (nodeId) =>
+    set((state) => {
+      const updatedNodes = state.nodes.filter((node) => node.id !== nodeId);
+      const wires = wireNodes(updatedNodes);
+      const numQubits = Math.max(wires.length, 1);
+      const gateList = gateNodes(updatedNodes).sort((a, b) =>
+        a.position.x !== b.position.x ? a.position.x - b.position.x : a.position.y - b.position.y
+      );
+
+      const circuit_ast = gateList.map((node) => {
+        const rawGate = node.data?.gate || node.data?.label || "h";
+        const gname = normalizeGateName(rawGate);
+        const lIndex = Math.max(0, Math.round(node.position.y / LANE_HEIGHT));
+        const targetQubit = Math.min(lIndex, numQubits - 1);
+        let targets;
+        if (Array.isArray(node.data?.targets)) {
+          targets = node.data.targets;
+        } else if (["cx", "cz", "swap"].includes(gname)) {
+          targets = typeof node.data?.controlQubit === "number" ? [node.data.controlQubit, targetQubit] : (targetQubit === 0 ? [0, 1] : [targetQubit - 1, targetQubit]);
+        } else if (gname === "ccx") {
+          targets = targetQubit >= 2 ? [targetQubit - 2, targetQubit - 1, targetQubit] : (numQubits >= 3 ? [0, 1, 2] : [targetQubit, targetQubit, targetQubit]);
+        } else {
+          targets = [targetQubit];
+        }
+        return { gate: gname, targets };
+      });
+
+      const newCode = generateQiskitCode({ qubit_count: numQubits, circuit_ast });
+      return { nodes: updatedNodes, codeText: newCode };
     }),
 
   snapNodeToLane: (nodeId, position) =>
@@ -191,7 +229,10 @@ export const useQuantumStore = create((set, get) => ({
         node.id === nodeId && node.type === "gate"
           ? {
               ...node,
-              position: { ...snapped, y: laneIndex * LANE_HEIGHT },
+              position: {
+                x: Math.max(GRID_SIZE, snapped.x),
+                y: laneIndex * LANE_HEIGHT,
+              },
             }
           : node
       );
@@ -201,32 +242,61 @@ export const useQuantumStore = create((set, get) => ({
 
   addGate: (gate) =>
     set((state) => {
-      const wires = wireNodes(state.nodes);
-      const snapped = snapPosition(gate.position);
-      const laneIndex = Math.round(snapped.y / LANE_HEIGHT);
+      let currentNodes = state.nodes;
+      let wires = wireNodes(currentNodes);
+      if (wires.length === 0) {
+        currentNodes = astToReactFlowNodes(
+          { qubit_count: 2, circuit_ast: [] },
+          LANE_HEIGHT,
+          GRID_SIZE
+        );
+        wires = wireNodes(currentNodes);
+      }
 
-      if (laneIndex < 0 || laneIndex >= wires.length) return state;
+      const rawPos = gate.position || { x: GRID_SIZE, y: 0 };
+      const snapped = snapPosition(rawPos);
+      const laneIndex = Math.min(
+        Math.max(Math.round(snapped.y / LANE_HEIGHT), 0),
+        Math.max(wires.length - 1, 0)
+      );
 
-      const laneGates = gateNodes(state.nodes).filter(
-        (node) =>
-          Math.round(node.position.y / LANE_HEIGHT) === laneIndex
+      let targetX = Math.max(snapped.x, GRID_SIZE);
+
+      // Avoid exact overlapping position if a gate already exists at this spot
+      const existingAtSpot = currentNodes.some(
+        (n) => n.type === "gate" && n.position.x === targetX && n.position.y === laneIndex * LANE_HEIGHT
       );
-      const lastX = laneGates.reduce(
-        (maximum, node) => Math.max(maximum, node.position.x),
-        -GRID_SIZE
-      );
+      if (existingAtSpot) {
+        const laneGates = gateNodes(currentNodes).filter(
+          (node) => Math.round(node.position.y / LANE_HEIGHT) === laneIndex
+        );
+        const maxX = laneGates.reduce((max, n) => Math.max(max, n.position.x), 0);
+        targetX = Math.max(targetX, maxX + GRID_SIZE);
+      }
+
       const position = {
-        x: Math.max(snapped.x, lastX + GRID_SIZE),
+        x: targetX,
         y: laneIndex * LANE_HEIGHT,
       };
 
+      const rawGateName = gate.data?.gate || gate.data?.label || gate.type || "H";
+      const normalized = normalizeGateName(rawGateName);
+      const label = (gate.data?.label || normalized).toUpperCase();
+
       const updatedNodes = [
-        ...state.nodes,
+        ...currentNodes,
         {
-          id: `gate-${Date.now()}-${state.nodes.length}`,
+          id: `gate-${Date.now()}-${currentNodes.length}`,
           type: "gate",
           position,
-          data: gate.data || { label: gate.type || "Gate" },
+          data: {
+            label,
+            gate: normalized,
+            targets: gate.data?.targets,
+            controlQubit: gate.data?.controlQubit,
+            params: gate.data?.params,
+            classical_reg: gate.data?.classical_reg,
+          },
         },
       ];
 
@@ -244,7 +314,9 @@ export const useQuantumStore = create((set, get) => ({
         if (Array.isArray(node.data?.targets)) {
           targets = node.data.targets;
         } else if (["cx", "cz", "swap"].includes(gname)) {
-          targets = typeof node.data?.controlQubit === "number" ? [node.data.controlQubit, targetQubit] : [0, 1];
+          targets = typeof node.data?.controlQubit === "number" ? [node.data.controlQubit, targetQubit] : (targetQubit === 0 ? [0, 1] : [targetQubit - 1, targetQubit]);
+        } else if (gname === "ccx") {
+          targets = targetQubit >= 2 ? [targetQubit - 2, targetQubit - 1, targetQubit] : (numQubits >= 3 ? [0, 1, 2] : [targetQubit, targetQubit, targetQubit]);
         } else {
           targets = [targetQubit];
         }
