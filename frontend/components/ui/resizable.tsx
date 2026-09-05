@@ -8,14 +8,15 @@ function ResizablePanelGroup({
   className,
   direction,
   ...props
-}: ResizablePrimitive.GroupProps) {
+}: ResizablePrimitive.GroupProps & { direction?: "horizontal" | "vertical" }) {
+  const orientation = direction || (props as any).orientation || "horizontal"
   return (
     <ResizablePrimitive.Group
       data-slot="resizable-panel-group"
-      orientation={direction}
+      orientation={orientation}
       className={cn(
         "flex h-full w-full",
-        direction === "vertical" && "flex-col",
+        orientation === "vertical" && "flex-col",
         className
       )}
       {...props}
