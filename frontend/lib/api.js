@@ -238,3 +238,184 @@ export async function getCurriculumRecommendations(userId, completedLessons = []
     throw error;
   }
 }
+
+/**
+ * Fetch profile statistics and 52-week activity heatmap for a user.
+ */
+export async function getUserStats(userId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/users/${userId}/stats`);
+    if (!res.ok) throw new Error(`User stats failed (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.warn("API Warning [getUserStats] - using offline fallback data:", error);
+    return {
+      status: "fallback",
+      user_id: userId,
+      stats: {
+        current_streak_days: 5,
+        challenges_solved_count: 3,
+        completed_lessons_count: 4,
+        qubit_operations_count: 48,
+        total_xp: 450,
+      }
+    };
+  }
+}
+
+/**
+ * Save circuit to Supabase backend.
+ */
+export async function saveCircuit(payload) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/circuits/`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Failed to save circuit (${res.status})`);
+    }
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [saveCircuit]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch all saved circuits from backend.
+ */
+export async function fetchCircuits() {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/circuits/`);
+    if (!res.ok) throw new Error(`Failed to fetch circuits (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [fetchCircuits]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Delete a saved circuit by ID.
+ */
+export async function deleteCircuit(circuitId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/circuits/${circuitId}`, {
+      method: "DELETE",
+    });
+    if (!res.ok) throw new Error(`Failed to delete circuit (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [deleteCircuit]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch course details along with its ordered lessons.
+ */
+export async function fetchCourseDetails(courseId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/courses/${courseId}`);
+    if (!res.ok) throw new Error(`Failed to fetch course details (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [fetchCourseDetails]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Mark a lesson as completed and sync with Supabase progress.
+ */
+export async function completeLesson(userId, lessonId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/progress/complete-lesson`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user_id: userId, lesson_id: lessonId }),
+    });
+    if (!res.ok) throw new Error(`Failed to complete lesson (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [completeLesson]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Fetch user's completed lesson progress.
+ */
+export async function fetchUserProgress(userId) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/progress/my-progress?user_id=${userId}`);
+    if (!res.ok) throw new Error(`Failed to fetch user progress (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [fetchUserProgress]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Evaluate and grade student circuit against challenge target.
+ */
+export async function evaluateChallenge(challengeId, payload) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/challenges/${challengeId}/evaluate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Challenge evaluation failed (${res.status})`);
+    }
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [evaluateChallenge]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Sign in or create user directly in Supabase users table.
+ */
+export async function loginOrRegisterUser({ email, full_name, role }) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/users/login-or-register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, full_name, role }),
+    });
+    if (!res.ok) throw new Error(`Auth request failed (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [loginOrRegisterUser]:", error);
+    throw error;
+  }
+}
+
+/**
+ * Update user profile in Supabase users table.
+ */
+export async function updateUserProfileApi(userId, updates) {
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/v1/users/${userId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(updates),
+    });
+    if (!res.ok) throw new Error(`Profile update failed (${res.status})`);
+    return await res.json();
+  } catch (error) {
+    console.error("API Error [updateUserProfileApi]:", error);
+    throw error;
+  }
+}
+
+
+

@@ -32,6 +32,35 @@ export function normalizeGateName(rawName) {
   return name;
 }
 
+export const DEFAULT_USER = {
+  id: "d1000000-0000-0000-0000-000000000001",
+  email: "dhairya@quantumcraft.dev",
+  full_name: "Dhairya Soni",
+  role: "admin",
+  xp: 450,
+  avatar: "DS",
+  color: "from-cyan-500 to-blue-600",
+  badge: "Admin & Lead Researcher",
+};
+
+function getInitialUser() {
+  if (typeof window === "undefined") return DEFAULT_USER;
+  try {
+    const savedStr = localStorage.getItem("quantumcraft_user");
+    if (!savedStr) return DEFAULT_USER;
+    const parsed = JSON.parse(savedStr);
+    const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(parsed?.id || ""));
+    if (!isUuid) {
+      const fixedUser = { ...DEFAULT_USER, ...parsed, id: DEFAULT_USER.id };
+      localStorage.setItem("quantumcraft_user", JSON.stringify(fixedUser));
+      return fixedUser;
+    }
+    return parsed;
+  } catch {
+    return DEFAULT_USER;
+  }
+}
+
 const defaultInitialNodes = astToReactFlowNodes(
   { qubit_count: 2, circuit_ast: [] },
   LANE_HEIGHT,
@@ -39,6 +68,7 @@ const defaultInitialNodes = astToReactFlowNodes(
 );
 
 export const useQuantumStore = create((set, get) => ({
+  currentUser: DEFAULT_USER,
   nodes: defaultInitialNodes,
   edges: [],
   selectedFramework: "qiskit",
@@ -48,6 +78,76 @@ export const useQuantumStore = create((set, get) => ({
   simulationError: null,
   codeText: "from qiskit import QuantumCircuit\nqc = QuantumCircuit(2, 2)\n",
   isSyncingFromCode: false,
+
+  loadUserFromStorage: () => {
+    if (typeof window === "undefined") return;
+    try {
+      const savedStr = localStorage.getItem("quantumcraft_user");
+      if (!savedStr) {
+        set({ currentUser: DEFAULT_USER });
+        return;
+      }
+      const parsed = JSON.parse(savedStr);
+      const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(parsed?.id || ""));
+      if (!isUuid) {
+        const fixedUser = { ...DEFAULT_USER, ...parsed, id: DEFAULT_USER.id };
+        localStorage.setItem("quantumcraft_user", JSON.stringify(fixedUser));
+        set({ currentUser: fixedUser });
+        return;
+      }
+      set({ currentUser: parsed });
+    } catch {
+      set({ currentUser: DEFAULT_USER });
+    }
+  },
+
+  setCurrentUser: (user) => {
+    if (typeof window !== "undefined" && user) {
+      try {
+        localStorage.setItem("quantumcraft_user", JSON.stringify(user));
+      } catch {}
+    }
+    set({ currentUser: user });
+  },
+
+  logoutUser: () => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.removeItem("quantumcraft_user");
+      } catch {}
+    }
+    set({ currentUser: null });
+  },
+
+  updateUserProfile: (updates) =>
+    set((state) => {
+      if (!state.currentUser) return state;
+      const updated = {
+        ...state.currentUser,
+        ...updates,
+      };
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("quantumcraft_user", JSON.stringify(updated));
+        } catch {}
+      }
+      return { currentUser: updated };
+    }),
+
+  addXP: (amount) =>
+    set((state) => {
+      if (!state.currentUser) return state;
+      const updated = {
+        ...state.currentUser,
+        xp: (state.currentUser.xp || 0) + amount,
+      };
+      if (typeof window !== "undefined") {
+        try {
+          localStorage.setItem("quantumcraft_user", JSON.stringify(updated));
+        } catch {}
+      }
+      return { currentUser: updated };
+    }),
 
   setFramework: (framework) => set({ selectedFramework: framework }),
   setShots: (shots) => set({ shots }),
@@ -60,6 +160,53 @@ export const useQuantumStore = create((set, get) => ({
     const ast = getCircuitAST();
     const newCode = generateQiskitCode(ast);
     set({ codeText: newCode });
+  },
+
+  loadCircuitToCanvas: (circuitAstOrPayload) => {
+    try {
+      let ast = circuitAstOrPayload;
+      if (circuitAstOrPayload?.canvas_json) {
+        ast = circuitAstOrPayload.canvas_json;
+      }
+      if (typeof ast === "string") {
+        try {
+          ast = JSON.parse(ast);
+        } catch {
+          return get().setNodesFromCode(ast);
+        }
+      }
+      const rawGates = Array.isArray(ast) ? ast : (ast?.circuit_ast || ast?.gates || []);
+      let maxQubit = 1;
+      rawGates.forEach((g) => {
+        if (Array.isArray(g.targets)) {
+          maxQubit = Math.max(maxQubit, ...g.targets);
+        }
+      });
+      const qubitCount = ast?.qubit_count || (maxQubit + 1);
+      const structuredAst = { qubit_count: Math.max(qubitCount, 1), circuit_ast: rawGates };
+      const newNodes = astToReactFlowNodes(structuredAst, LANE_HEIGHT, GRID_SIZE);
+      const code = generateQiskitCode(structuredAst);
+      set({
+        nodes: newNodes,
+        codeText: code,
+        simulationResults: null,
+        simulationError: null,
+      });
+    } catch (e) {
+      console.error("Failed to load circuit into canvas:", e);
+    }
+  },
+
+  resetCanvas: (numQubits = 2) => {
+    const defaultAst = { qubit_count: numQubits, circuit_ast: [] };
+    const newNodes = astToReactFlowNodes(defaultAst, LANE_HEIGHT, GRID_SIZE);
+    const code = generateQiskitCode(defaultAst);
+    set({
+      nodes: newNodes,
+      codeText: code,
+      simulationResults: null,
+      simulationError: null,
+    });
   },
 
   setNodesFromCode: (codeString) => {

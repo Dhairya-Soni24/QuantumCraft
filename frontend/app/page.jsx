@@ -14,6 +14,14 @@ import {
   Settings,
   Sun,
   Terminal,
+  User,
+  Sparkles,
+  ChevronDown,
+  BookmarkPlus,
+  FolderGit2,
+  RotateCcw,
+  BookOpen,
+  Trophy,
 } from "lucide-react";
 import {
   ResizableHandle,
@@ -26,6 +34,11 @@ import {
   useQuantumStore,
 } from "@/store/useQuantumStore";
 import SimulationOutput from "@/components/SimulationOutput";
+import AuthModal from "@/components/AuthModal";
+import SaveCircuitModal from "@/components/SaveCircuitModal";
+import MyCircuitsModal from "@/components/MyCircuitsModal";
+import LessonsDrawer from "@/components/LessonsDrawer";
+import ChallengesDrawer from "@/components/ChallengesDrawer";
 import { sendTutorMessage, streamTutorMessage } from "@/lib/api";
 import ReactFlow, {
   Background,
@@ -33,13 +46,6 @@ import ReactFlow, {
   useReactFlow,
 } from "reactflow";
 import "reactflow/dist/style.css";
-
-const gates = [
-  ["H", "Hadamard", "text-cyan-300 border-cyan-400"],
-  ["X", "Pauli-X", "text-purple-300 border-purple-400"],
-  ["Y", "Pauli-Y", "text-purple-300 border-purple-400"],
-  ["Z", "Pauli-Z", "text-purple-300 border-purple-400"],
-];
 
 function handleGateDragStart(event, gateType) {
   event.dataTransfer.setData("application/reactflow", gateType);
@@ -179,63 +185,146 @@ function GateLibrary() {
   );
 }
 
-function Nav() {
-  const links = ["Workspace", "Lessons", "Challenges", "Profile"];
+function Nav({ onOpenAuth, onOpenLessons, onOpenChallenges }) {
+  const currentUser = useQuantumStore((state) => state.currentUser);
+  const loadUserFromStorage = useQuantumStore((state) => state.loadUserFromStorage);
+  const [isHydrated, setIsHydrated] = useState(false);
+
+  useEffect(() => {
+    loadUserFromStorage();
+    setIsHydrated(true);
+  }, [loadUserFromStorage]);
 
   return (
-    <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-5">
+    <header className="flex h-12 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-950 px-5 select-none">
       <div className="flex h-full items-center gap-8">
-        <Link href="/" className="text-[22px] font-bold text-cyan-300">
+        <Link href="/" className="flex items-center gap-2 text-[22px] font-bold tracking-tight text-cyan-300">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-tr from-cyan-500 to-purple-600 text-slate-950 font-mono text-sm shadow-md shadow-cyan-500/30">
+            Ψ
+          </span>
           QuantumCraft
         </Link>
         <nav className="hidden h-full items-center gap-7 md:flex">
-          {links.map((item) => (
-            <Link
-              key={item}
-              href={item === "Profile" ? "/profile" : "/"}
-              className={
-                item === "Workspace"
-                  ? "flex h-full items-center border-b-2 border-cyan-300 text-sm text-cyan-300"
-                  : "flex h-full items-center border-b-2 border-transparent text-sm text-slate-300"
-              }
-            >
-              {item}
-            </Link>
-          ))}
+          <button
+            onClick={() => {}}
+            className="flex h-full items-center border-b-2 border-cyan-300 text-sm font-medium text-cyan-300"
+          >
+            Workspace
+          </button>
+          <button
+            onClick={onOpenLessons}
+            className="flex h-full items-center border-b-2 border-transparent text-sm font-medium text-slate-300 hover:text-cyan-300 transition-colors gap-1.5"
+          >
+            <BookOpen size={14} className="text-teal-400" /> Lessons
+          </button>
+          <button
+            onClick={onOpenChallenges}
+            className="flex h-full items-center border-b-2 border-transparent text-sm font-medium text-slate-300 hover:text-cyan-300 transition-colors gap-1.5"
+          >
+            <Trophy size={14} className="text-purple-400" /> Challenges
+          </button>
+          <Link
+            href="/profile"
+            className="flex h-full items-center border-b-2 border-transparent text-sm font-medium text-slate-300 hover:text-cyan-300 transition-colors"
+          >
+            Profile
+          </Link>
         </nav>
       </div>
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3">
         <button
           aria-label="Toggle dark mode"
-          className="rounded-full p-2 text-slate-300 hover:bg-white/10"
+          className="rounded-full p-2 text-slate-400 hover:bg-slate-800 hover:text-slate-200 transition-colors"
         >
           <Sun size={17} />
         </button>
-        <button className="rounded-lg border border-cyan-400 bg-cyan-400 px-4 py-1 text-sm text-slate-950 hover:bg-cyan-300">
-          Login
-        </button>
+
+        {isHydrated && currentUser ? (
+          <button
+            onClick={onOpenAuth}
+            className="group flex items-center gap-2.5 rounded-full border border-slate-700 bg-slate-900 py-1 pl-1 pr-3 hover:border-cyan-500/60 hover:bg-slate-850 transition-all shadow-sm"
+          >
+            <div className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-tr from-cyan-500 to-purple-600 font-mono text-xs font-bold text-white shadow">
+              {currentUser.avatar || currentUser.full_name?.slice(0, 2).toUpperCase() || "U"}
+            </div>
+            <div className="text-left leading-none">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-semibold text-slate-200 group-hover:text-cyan-300 transition-colors">
+                  {currentUser.full_name}
+                </span>
+                <span className="rounded bg-cyan-950 px-1.5 py-0.5 text-[9px] font-bold uppercase text-cyan-400 border border-cyan-800/60">
+                  {currentUser.role}
+                </span>
+              </div>
+              <span className="text-[10px] font-medium text-amber-300">⚡ {currentUser.xp || 100} XP</span>
+            </div>
+            <ChevronDown size={13} className="text-slate-400 group-hover:text-cyan-300 transition-colors" />
+          </button>
+        ) : isHydrated ? (
+          <button
+            onClick={onOpenAuth}
+            className="flex items-center gap-1.5 rounded-lg border border-cyan-400 bg-cyan-400 px-4 py-1.5 text-xs font-bold text-slate-950 shadow-md shadow-cyan-400/20 hover:bg-cyan-300 transition-colors"
+          >
+            <User size={14} />
+            Sign In
+          </button>
+        ) : null}
       </div>
     </header>
   );
 }
 
-function ActivityBar() {
+function ActivityBar({ onOpenMyCircuits, onOpenLessons, onOpenChallenges }) {
   return (
-    <aside className="flex w-[52px] shrink-0 flex-col items-center border-r border-slate-800 bg-slate-800 pt-3 text-slate-300">
-      <Grid2X2 />
-      <span className="mt-1 text-[9px] uppercase">Gates</span>
-      <Folder className="mt-8" />
-      <span className="mt-1 text-[9px] uppercase">Files</span>
-      <Search className="mt-8" />
-      <span className="mt-1 text-[9px] uppercase">Find</span>
-      <Terminal className="mt-auto" />
-      <span className="mb-4 mt-1 text-[9px] uppercase">Term</span>
-      <Settings className="mb-2" />
+    <aside className="flex w-[52px] shrink-0 flex-col items-center border-r border-slate-800 bg-slate-850 pt-3 text-slate-400 select-none">
+      <button
+        type="button"
+        title="Gate Library"
+        className="flex flex-col items-center text-cyan-400 hover:text-cyan-300 transition-colors"
+      >
+        <Grid2X2 size={18} />
+        <span className="mt-1 text-[8px] uppercase font-bold">Gates</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpenMyCircuits}
+        title="Saved Circuits & Templates"
+        className="mt-6 flex flex-col items-center text-slate-400 hover:text-cyan-300 transition-colors"
+      >
+        <Folder size={18} />
+        <span className="mt-1 text-[8px] uppercase font-bold">Circuits</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpenLessons}
+        title="Interactive Curriculum"
+        className="mt-6 flex flex-col items-center text-slate-400 hover:text-teal-300 transition-colors"
+      >
+        <BookOpen size={18} />
+        <span className="mt-1 text-[8px] uppercase font-bold">Theory</span>
+      </button>
+
+      <button
+        type="button"
+        onClick={onOpenChallenges}
+        title="Coding Challenges"
+        className="mt-6 flex flex-col items-center text-slate-400 hover:text-purple-300 transition-colors"
+      >
+        <Trophy size={18} />
+        <span className="mt-1 text-[8px] uppercase font-bold">Grader</span>
+      </button>
+
+      <div className="mt-auto flex flex-col items-center pb-3 space-y-4">
+        <Terminal size={17} className="text-slate-500" />
+        <Settings size={17} className="text-slate-500" />
+      </div>
     </aside>
   );
 }
 
-function FlowCanvas() {
+function FlowCanvas({ onOpenSave, onOpenMyCircuits }) {
   const { project } = useReactFlow();
   const nodes = useQuantumStore((state) => state.nodes);
   const edges = useQuantumStore((state) => state.edges);
@@ -246,6 +335,7 @@ function FlowCanvas() {
   const snapNodeToLane = useQuantumStore((state) => state.snapNodeToLane);
   const addWire = useQuantumStore((state) => state.addWire);
   const removeWire = useQuantumStore((state) => state.removeWire);
+  const resetCanvas = useQuantumStore((state) => state.resetCanvas);
   const runSimulationAction = useQuantumStore((state) => state.runSimulationAction);
   const isSimulating = useQuantumStore((state) => state.isSimulating);
   const wires = nodes.filter((node) => node.type === "wire");
@@ -281,21 +371,55 @@ function FlowCanvas() {
 
   return (
     <div className="flex h-full w-full flex-col bg-[#020617]">
+      {/* Workspace Toolbar */}
       <div className="flex h-10 shrink-0 items-center justify-between border-b border-slate-800 bg-slate-900 px-3 text-xs uppercase z-10">
-        <span className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <Activity size={15} className="text-cyan-400" />
-          Circuit Editor
+          <span>Circuit Editor</span>
           <span className="text-slate-600">|</span>
-          <span className="font-mono normal-case text-slate-300">main.qc</span>
-        </span>
-        <button
-          onClick={() => runSimulationAction()}
-          disabled={isSimulating}
-          className="flex items-center gap-1.5 rounded border border-cyan-400/60 bg-cyan-950/80 px-3 py-1 font-mono text-xs text-cyan-300 transition-all hover:bg-cyan-400 hover:text-slate-950 disabled:opacity-50"
-        >
-          <Play size={13} className={isSimulating ? "animate-spin" : ""} />
-          {isSimulating ? "Simulating..." : "Run Simulation"}
-        </button>
+          <span className="font-mono normal-case text-slate-300">workspace.qc</span>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={onOpenSave}
+            title="Save Circuit to Profile"
+            className="flex items-center gap-1.5 rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:border-cyan-500 hover:bg-slate-750 transition-colors"
+          >
+            <BookmarkPlus size={13} className="text-cyan-400" />
+            Save
+          </button>
+
+          <button
+            type="button"
+            onClick={onOpenMyCircuits}
+            title="Open Saved Circuits & Presets"
+            className="flex items-center gap-1.5 rounded border border-slate-700 bg-slate-800 px-2.5 py-1 text-[11px] font-semibold text-slate-200 hover:border-purple-500 hover:bg-slate-750 transition-colors"
+          >
+            <FolderGit2 size={13} className="text-purple-400" />
+            Library
+          </button>
+
+          <button
+            type="button"
+            onClick={() => resetCanvas(2)}
+            title="Reset Canvas"
+            className="flex items-center gap-1 rounded border border-slate-800 bg-slate-950 px-2 py-1 text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            <RotateCcw size={12} />
+            Reset
+          </button>
+
+          <button
+            onClick={() => runSimulationAction()}
+            disabled={isSimulating}
+            className="flex items-center gap-1.5 rounded border border-cyan-400/60 bg-cyan-950/80 px-3 py-1 font-mono text-xs text-cyan-300 transition-all hover:bg-cyan-400 hover:text-slate-950 disabled:opacity-50"
+          >
+            <Play size={13} className={isSimulating ? "animate-spin" : ""} />
+            {isSimulating ? "Simulating..." : "Run Simulation"}
+          </button>
+        </div>
       </div>
 
       <div
@@ -419,7 +543,6 @@ function Tutor() {
     const updatedHistory = [...messages, userMessage];
     const assistantIndex = updatedHistory.length;
 
-    // Add initial placeholder for streaming response
     setMessages([...updatedHistory, { role: "assistant", content: "", suggested_actions: [] }]);
     setInput("");
     setIsLoading(true);
@@ -507,7 +630,6 @@ function Tutor() {
       </div>
 
       <div className="relative flex min-h-0 flex-1 flex-col">
-        {/* Messages List */}
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
           {messages.map((msg, i) => (
             <div key={i} className={`flex flex-col ${msg.role === "user" ? "items-end" : "items-start"}`}>
@@ -526,7 +648,6 @@ function Tutor() {
                 </div>
               </div>
 
-              {/* Quick Suggestion Chips */}
               {msg.suggested_actions && msg.suggested_actions.length > 0 && (
                 <div className="mt-2 flex flex-wrap gap-1.5 pl-9">
                   {msg.suggested_actions.map((act, idx) => (
@@ -544,7 +665,6 @@ function Tutor() {
             </div>
           ))}
 
-          {/* Loading Indicator */}
           {isLoading && (
             <div className="flex items-center gap-2 text-xs text-slate-400 pl-1">
               <Bot size={15} className="animate-pulse text-purple-400" />
@@ -554,7 +674,6 @@ function Tutor() {
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input Bar */}
         <div className="mt-auto shrink-0 border-t border-slate-800 p-3 bg-slate-900/90">
           <div className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-950 px-3 focus-within:border-cyan-500/70 transition-colors">
             <input
@@ -592,11 +711,27 @@ function Output() {
 }
 
 export default function Home() {
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isSaveOpen, setIsSaveOpen] = useState(false);
+  const [isMyCircuitsOpen, setIsMyCircuitsOpen] = useState(false);
+  const [isLessonsOpen, setIsLessonsOpen] = useState(false);
+  const [isChallengesOpen, setIsChallengesOpen] = useState(false);
+
   return (
     <div className="flex h-screen min-h-[680px] flex-col overflow-hidden bg-slate-950 font-sans antialiased text-slate-100">
-      <Nav />
+      <Nav
+        onOpenAuth={() => setIsAuthOpen(true)}
+        onOpenLessons={() => setIsLessonsOpen(true)}
+        onOpenChallenges={() => setIsChallengesOpen(true)}
+      />
+
       <main className="flex min-h-0 flex-1">
-        <ActivityBar />
+        <ActivityBar
+          onOpenMyCircuits={() => setIsMyCircuitsOpen(true)}
+          onOpenLessons={() => setIsLessonsOpen(true)}
+          onOpenChallenges={() => setIsChallengesOpen(true)}
+        />
+
         <ResizablePanelGroup className="h-[calc(100vh-4rem)] min-w-0 flex-1" direction="horizontal">
           <ResizablePanel defaultSize={15} minSize={12}><GateLibrary /></ResizablePanel>
           <ResizableHandle
@@ -607,7 +742,10 @@ export default function Home() {
             <ResizablePanelGroup direction="vertical" className="h-full">
               <ResizablePanel defaultSize={65} minSize={30}>
                 <ReactFlowProvider>
-                  <FlowCanvas />
+                  <FlowCanvas
+                    onOpenSave={() => setIsSaveOpen(true)}
+                    onOpenMyCircuits={() => setIsMyCircuitsOpen(true)}
+                  />
                 </ReactFlowProvider>
               </ResizablePanel>
               <ResizableHandle withHandle className="bg-slate-800 transition-colors hover:bg-teal-500 active:bg-teal-500 [&>div]:bg-slate-600" />
@@ -627,6 +765,13 @@ export default function Home() {
           </ResizablePanel>
         </ResizablePanelGroup>
       </main>
+
+      {/* Modals and Drawers */}
+      <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+      <SaveCircuitModal isOpen={isSaveOpen} onClose={() => setIsSaveOpen(false)} />
+      <MyCircuitsModal isOpen={isMyCircuitsOpen} onClose={() => setIsMyCircuitsOpen(false)} />
+      <LessonsDrawer isOpen={isLessonsOpen} onClose={() => setIsLessonsOpen(false)} />
+      <ChallengesDrawer isOpen={isChallengesOpen} onClose={() => setIsChallengesOpen(false)} />
     </div>
   );
 }
