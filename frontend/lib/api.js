@@ -1,4 +1,17 @@
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+/**
+ * Determine dynamic API base URL.
+ * Automatically resolves to the hosting IP or localhost on port 8000.
+ */
+export function getApiBaseUrl() {
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL;
+  }
+  if (typeof window !== "undefined" && window.location && window.location.hostname) {
+    const protocol = window.location.protocol || "http:";
+    return `${protocol}//${window.location.hostname}:8000`;
+  }
+  return "http://localhost:8000";
+}
 
 /**
  * Execute quantum circuit simulation via FastAPI Aer backend.
@@ -6,7 +19,7 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
  */
 export async function runSimulation(astPayload) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/simulate`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/simulate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(astPayload),
@@ -37,7 +50,7 @@ export async function sendTutorMessage(message, history = [], circuitContext = {
       content: typeof h.content === "string" ? h.content : "",
     }));
 
-    const res = await fetch(`${API_BASE_URL}/api/v1/ai/chat`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/ai/chat`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -75,7 +88,7 @@ export async function streamTutorMessage(message, history = [], circuitContext =
       content: typeof h.content === "string" ? h.content : "",
     }));
 
-    const res = await fetch(`${API_BASE_URL}/api/v1/ai/chat/stream`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/ai/chat/stream`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -135,7 +148,7 @@ export async function streamTutorMessage(message, history = [], circuitContext =
  */
 export async function fetchAlgorithmTemplates() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/algorithms/templates`);
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/algorithms/templates`);
     if (!res.ok) throw new Error(`Failed to fetch templates (${res.status})`);
     return await res.json();
   } catch (error) {
@@ -149,7 +162,7 @@ export async function fetchAlgorithmTemplates() {
  */
 export async function fetchCourses() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/courses`);
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/courses`);
     if (!res.ok) throw new Error(`Failed to fetch courses (${res.status})`);
     return await res.json();
   } catch (error) {
@@ -163,7 +176,7 @@ export async function fetchCourses() {
  */
 export async function fetchChallenges() {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/challenges`);
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/challenges`);
     if (!res.ok) throw new Error(`Failed to fetch challenges (${res.status})`);
     return await res.json();
   } catch (error) {
@@ -177,7 +190,7 @@ export async function fetchChallenges() {
  */
 export async function explainCircuit(circuitAst, stateVector = null, counts = null) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/ai/explain`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/ai/explain`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -200,7 +213,7 @@ export async function explainCircuit(circuitAst, stateVector = null, counts = nu
  */
 export async function getChallengeHint(challengeId, currentAst = [], attemptCount = 1) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/ai/hint`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/ai/hint`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -222,7 +235,7 @@ export async function getChallengeHint(challengeId, currentAst = [], attemptCoun
  */
 export async function getCurriculumRecommendations(userId, completedLessons = [], solvedChallenges = []) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/ai/recommend`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/ai/recommend`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -244,7 +257,7 @@ export async function getCurriculumRecommendations(userId, completedLessons = []
  */
 export async function getUserStats(userId) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/users/${userId}/stats`);
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/users/${userId}/stats`);
     if (!res.ok) throw new Error(`User stats failed (${res.status})`);
     return await res.json();
   } catch (error) {
@@ -253,11 +266,11 @@ export async function getUserStats(userId) {
       status: "fallback",
       user_id: userId,
       stats: {
-        current_streak_days: 5,
-        challenges_solved_count: 3,
-        completed_lessons_count: 4,
-        qubit_operations_count: 48,
-        total_xp: 450,
+        current_streak_days: 0,
+        challenges_solved_count: 0,
+        completed_lessons_count: 0,
+        qubit_operations_count: 0,
+        total_xp: 0,
       }
     };
   }
@@ -268,7 +281,7 @@ export async function getUserStats(userId) {
  */
 export async function saveCircuit(payload) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/circuits/`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/circuits/`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -286,10 +299,14 @@ export async function saveCircuit(payload) {
 
 /**
  * Fetch all saved circuits from backend.
+ * @param {string|null} userId - Optional user ID filter
  */
-export async function fetchCircuits() {
+export async function fetchCircuits(userId = null) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/circuits/`);
+    const url = userId
+      ? `${getApiBaseUrl()}/api/v1/circuits/?user_id=${userId}`
+      : `${getApiBaseUrl()}/api/v1/circuits/`;
+    const res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to fetch circuits (${res.status})`);
     return await res.json();
   } catch (error) {
@@ -303,7 +320,7 @@ export async function fetchCircuits() {
  */
 export async function deleteCircuit(circuitId) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/circuits/${circuitId}`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/circuits/${circuitId}`, {
       method: "DELETE",
     });
     if (!res.ok) throw new Error(`Failed to delete circuit (${res.status})`);
@@ -319,7 +336,7 @@ export async function deleteCircuit(circuitId) {
  */
 export async function fetchCourseDetails(courseId) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/courses/${courseId}`);
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/courses/${courseId}`);
     if (!res.ok) throw new Error(`Failed to fetch course details (${res.status})`);
     return await res.json();
   } catch (error) {
@@ -333,7 +350,7 @@ export async function fetchCourseDetails(courseId) {
  */
 export async function completeLesson(userId, lessonId) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/progress/complete-lesson`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/progress/complete-lesson`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ user_id: userId, lesson_id: lessonId }),
@@ -351,7 +368,7 @@ export async function completeLesson(userId, lessonId) {
  */
 export async function fetchUserProgress(userId) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/progress/my-progress?user_id=${userId}`);
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/progress/my-progress?user_id=${userId}`);
     if (!res.ok) throw new Error(`Failed to fetch user progress (${res.status})`);
     return await res.json();
   } catch (error) {
@@ -365,7 +382,7 @@ export async function fetchUserProgress(userId) {
  */
 export async function evaluateChallenge(challengeId, payload) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/challenges/${challengeId}/evaluate`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/challenges/${challengeId}/evaluate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -386,12 +403,15 @@ export async function evaluateChallenge(challengeId, payload) {
  */
 export async function loginOrRegisterUser({ email, full_name, role }) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/users/login-or-register`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/users/login-or-register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ email, full_name, role }),
     });
-    if (!res.ok) throw new Error(`Auth request failed (${res.status})`);
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Auth request failed with status ${res.status}`);
+    }
     return await res.json();
   } catch (error) {
     console.error("API Error [loginOrRegisterUser]:", error);
@@ -404,18 +424,18 @@ export async function loginOrRegisterUser({ email, full_name, role }) {
  */
 export async function updateUserProfileApi(userId, updates) {
   try {
-    const res = await fetch(`${API_BASE_URL}/api/v1/users/${userId}`, {
+    const res = await fetch(`${getApiBaseUrl()}/api/v1/users/${userId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(updates),
     });
-    if (!res.ok) throw new Error(`Profile update failed (${res.status})`);
+    if (!res.ok) {
+      const errorData = await res.json().catch(() => ({}));
+      throw new Error(errorData.detail || `Profile update failed (${res.status})`);
+    }
     return await res.json();
   } catch (error) {
     console.error("API Error [updateUserProfileApi]:", error);
     throw error;
   }
 }
-
-
-

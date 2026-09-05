@@ -42,6 +42,7 @@ def _generate_mock_heatmap() -> List[Dict[str, Any]]:
 def login_or_register(payload: UserLoginRequest):
     """
     Finds existing user by email or creates a new record in Supabase users table.
+    Updates name/role if existing user info has changed.
     """
     clean_email = payload.email.strip().lower()
     clean_name = (payload.full_name or "Quantum Explorer").strip()
@@ -54,9 +55,24 @@ def login_or_register(payload: UserLoginRequest):
         existing = supabase.table("users").select("*").eq("email", clean_email).execute()
         if existing.data and len(existing.data) > 0:
             user_data = existing.data[0]
+            # Update user info if name or role changed
+            needs_update = False
+            upd_payload = {"updated_at": datetime.now(timezone.utc).isoformat()}
+            if clean_name and clean_name != "Quantum Explorer" and clean_name != user_data.get("full_name"):
+                upd_payload["full_name"] = clean_name
+                needs_update = True
+            if clean_role and clean_role != user_data.get("role"):
+                upd_payload["role"] = clean_role
+                needs_update = True
+
+            if needs_update:
+                upd_res = supabase.table("users").update(upd_payload).eq("id", user_data["id"]).execute()
+                if upd_res.data:
+                    user_data = upd_res.data[0]
+
             return {
                 "status": "success",
-                "message": "User signed in successfully",
+                "message": f"Welcome back, {user_data.get('full_name')}!",
                 "user": user_data
             }
 
@@ -72,22 +88,15 @@ def login_or_register(payload: UserLoginRequest):
         created_user = res.data[0] if res.data else new_record
         return {
             "status": "success",
-            "message": "User registered successfully",
+            "message": f"Account created for {clean_name}!",
             "user": created_user
         }
     except Exception as e:
-        print(f"[UsersRouter] DB error, using resilient fallback: {e}")
-        fallback_id = str(uuid.uuid5(uuid.NAMESPACE_DNS, clean_email))
-        return {
-            "status": "success",
-            "mode": "offline_fallback",
-            "user": {
-                "id": fallback_id,
-                "email": clean_email,
-                "full_name": clean_name,
-                "role": clean_role,
-            }
-        }
+        print(f"[UsersRouter] Database error during login/register: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"Database authentication error: {str(e)}"
+        )
 
 @router.get("/{user_id}")
 def get_user_profile(user_id: str):

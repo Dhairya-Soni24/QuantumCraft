@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { User, Sparkles, X, LogOut, ArrowRight, Shield, Mail, Check } from "lucide-react";
+import { User, Sparkles, X, LogOut, Shield, Mail, Check, AlertCircle } from "lucide-react";
 import { useQuantumStore } from "@/store/useQuantumStore";
 import { loginOrRegisterUser } from "@/lib/api";
 
@@ -10,9 +10,9 @@ export default function AuthModal({ isOpen, onClose }) {
   const setCurrentUser = useQuantumStore((state) => state.setCurrentUser);
   const logoutUser = useQuantumStore((state) => state.logoutUser);
 
-  const [fullName, setFullName] = useState(currentUser?.full_name || "");
-  const [email, setEmail] = useState(currentUser?.email || "");
-  const [role, setRole] = useState(currentUser?.role || "admin");
+  const [fullName, setFullName] = useState("");
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState("student");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [successMsg, setSuccessMsg] = useState("");
@@ -30,7 +30,7 @@ export default function AuthModal({ isOpen, onClose }) {
     if (isOpen) {
       setFullName(currentUser?.full_name || "");
       setEmail(currentUser?.email || "");
-      setRole(currentUser?.role || "admin");
+      setRole(currentUser?.role || "student");
       setErrorMsg("");
       setSuccessMsg("");
     }
@@ -41,20 +41,13 @@ export default function AuthModal({ isOpen, onClose }) {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email.trim() || !fullName.trim()) {
-      setErrorMsg("Please provide both full name and email address.");
+      setErrorMsg("Please provide both your name and email address.");
       return;
     }
 
     setIsSubmitting(true);
     setErrorMsg("");
-
-    const initials = fullName
-      .trim()
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2) || "U";
+    setSuccessMsg("");
 
     try {
       const res = await loginOrRegisterUser({
@@ -63,41 +56,38 @@ export default function AuthModal({ isOpen, onClose }) {
         role,
       });
 
-      const userRecord = res?.user || {};
+      if (!res || !res.user || !res.user.id) {
+        throw new Error(res?.message || "Failed to authenticate with database.");
+      }
+
+      const dbUser = res.user;
+      const initials = (dbUser.full_name || fullName)
+        .trim()
+        .split(" ")
+        .map((n) => n[0])
+        .join("")
+        .toUpperCase()
+        .slice(0, 2) || "U";
+
       const userPayload = {
-        id: userRecord.id || currentUser?.id,
-        email: userRecord.email || email.trim().toLowerCase(),
-        full_name: userRecord.full_name || fullName.trim(),
-        role: userRecord.role || role,
-        xp: currentUser?.xp || 450,
+        id: dbUser.id,
+        email: dbUser.email,
+        full_name: dbUser.full_name,
+        role: dbUser.role || role,
+        xp: currentUser?.xp || 100,
         avatar: initials,
-        color: role === "admin" ? "from-cyan-500 to-blue-600" : role === "instructor" ? "from-amber-500 to-emerald-600" : "from-purple-500 to-pink-600",
-        badge: role === "admin" ? "Admin & Lead Researcher" : role === "instructor" ? "Quantum Physics Instructor" : "Quantum Computing Student",
+        color: dbUser.role === "admin" ? "from-cyan-500 to-blue-600" : dbUser.role === "instructor" ? "from-amber-500 to-emerald-600" : "from-purple-500 to-pink-600",
+        badge: dbUser.role === "admin" ? "Admin & Lead Researcher" : dbUser.role === "instructor" ? "Quantum Physics Instructor" : "Quantum Computing Student",
       };
 
       setCurrentUser(userPayload);
-      setSuccessMsg("Successfully signed in!");
+      setSuccessMsg(res.message || "Signed in successfully!");
       setTimeout(() => {
         onClose();
-      }, 600);
+      }, 700);
     } catch (err) {
       console.error("Auth error:", err);
-      // Fallback local sign in
-      const userPayload = {
-        id: currentUser?.id || "d1000000-0000-0000-0000-000000000001",
-        email: email.trim().toLowerCase(),
-        full_name: fullName.trim(),
-        role,
-        xp: currentUser?.xp || 450,
-        avatar: initials,
-        color: role === "admin" ? "from-cyan-500 to-blue-600" : "from-purple-500 to-pink-600",
-        badge: role === "admin" ? "Admin & Lead Researcher" : "Quantum Computing Student",
-      };
-      setCurrentUser(userPayload);
-      setSuccessMsg("Signed in!");
-      setTimeout(() => {
-        onClose();
-      }, 600);
+      setErrorMsg(err.message || "Failed to reach backend database. Please ensure backend is running on port 8000.");
     } finally {
       setIsSubmitting(false);
     }
@@ -119,8 +109,10 @@ export default function AuthModal({ isOpen, onClose }) {
                 <User size={20} className="text-white" />
               </div>
               <div>
-                <h2 className="text-lg font-bold text-slate-100">QuantumCraft Account</h2>
-                <p className="text-xs text-slate-400">Sign in or register your quantum researcher profile</p>
+                <h2 className="text-lg font-bold text-slate-100">
+                  {currentUser ? "Switch / Manage Account" : "Sign In to QuantumCraft"}
+                </h2>
+                <p className="text-xs text-slate-400">Creates or links your real profile in Supabase database</p>
               </div>
             </div>
             <button
@@ -140,7 +132,7 @@ export default function AuthModal({ isOpen, onClose }) {
             <input
               type="text"
               required
-              placeholder="e.g. Soni Dhairya"
+              placeholder="e.g. John Doe"
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
@@ -152,7 +144,7 @@ export default function AuthModal({ isOpen, onClose }) {
             <input
               type="email"
               required
-              placeholder="e.g. dhairya@quantumcraft.dev"
+              placeholder="e.g. johndoe@gmail.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full rounded-lg border border-slate-700 bg-slate-950 px-3.5 py-2.5 text-xs text-slate-100 placeholder:text-slate-500 focus:border-cyan-400 focus:outline-none"
@@ -160,7 +152,7 @@ export default function AuthModal({ isOpen, onClose }) {
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-300 mb-1.5">Role / Access Level</label>
+            <label className="block text-xs font-semibold text-slate-300 mb-1.5">Role / Permission Level</label>
             <div className="grid grid-cols-3 gap-2">
               {[
                 { id: "student", label: "Student" },
@@ -184,9 +176,10 @@ export default function AuthModal({ isOpen, onClose }) {
           </div>
 
           {errorMsg && (
-            <p className="text-xs text-rose-400 bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/60">
-              {errorMsg}
-            </p>
+            <div className="flex items-start gap-2 text-xs text-rose-300 bg-rose-950/50 p-3 rounded-lg border border-rose-900/60">
+              <AlertCircle size={15} className="text-rose-400 shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
+            </div>
           )}
 
           {successMsg && (
@@ -201,8 +194,8 @@ export default function AuthModal({ isOpen, onClose }) {
             disabled={isSubmitting}
             className="mt-2 w-full flex items-center justify-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-600 py-2.5 text-xs font-bold text-slate-950 shadow-lg shadow-cyan-500/20 hover:opacity-95 disabled:opacity-50 transition-all"
           >
-            <Sparkles size={14} className="text-white" />
-            <span className="text-white">{isSubmitting ? "Connecting to Database..." : "Save & Sign In"}</span>
+            <Sparkles size={14} className="text-slate-950" />
+            <span>{isSubmitting ? "Connecting to Supabase..." : "Sign In / Register"}</span>
           </button>
         </form>
 
@@ -211,7 +204,7 @@ export default function AuthModal({ isOpen, onClose }) {
           <div className="flex items-center justify-between border-t border-slate-800 bg-slate-950/80 px-6 py-3 text-xs text-slate-400">
             <span className="flex items-center gap-1.5">
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
-              Active: <strong className="text-slate-200">{currentUser.full_name}</strong>
+              Currently Active: <strong className="text-slate-200">{currentUser.full_name}</strong>
             </span>
             <button
               onClick={() => {

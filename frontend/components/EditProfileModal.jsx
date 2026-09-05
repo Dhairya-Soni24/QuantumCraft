@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { UserCog, X, Check, Sparkles, Shield, Mail, User } from "lucide-react";
+import { UserCog, X, Check, Sparkles, AlertCircle } from "lucide-react";
 import { useQuantumStore } from "@/store/useQuantumStore";
 import { updateUserProfileApi } from "@/lib/api";
 
@@ -39,6 +39,11 @@ export default function EditProfileModal({ isOpen, onClose }) {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (!currentUser || !currentUser.id) {
+      setErrorMsg("Please sign in first to edit your profile.");
+      return;
+    }
+
     if (!fullName.trim() || !email.trim()) {
       setErrorMsg("Full name and email cannot be empty.");
       return;
@@ -77,8 +82,7 @@ export default function EditProfileModal({ isOpen, onClose }) {
     };
 
     try {
-      const userId = currentUser?.id || "d1000000-0000-0000-0000-000000000001";
-      await updateUserProfileApi(userId, {
+      await updateUserProfileApi(currentUser.id, {
         full_name: updates.full_name,
         email: updates.email,
         role: updates.role,
@@ -91,11 +95,7 @@ export default function EditProfileModal({ isOpen, onClose }) {
       }, 700);
     } catch (err) {
       console.error("Profile update error:", err);
-      updateUserProfile(updates);
-      setSuccessMsg("Profile updated in session!");
-      setTimeout(() => {
-        onClose();
-      }, 700);
+      setErrorMsg(err.message || "Failed to update profile in database.");
     } finally {
       setIsSaving(false);
     }
@@ -180,9 +180,10 @@ export default function EditProfileModal({ isOpen, onClose }) {
           </div>
 
           {errorMsg && (
-            <p className="text-xs text-rose-400 bg-rose-950/40 p-2.5 rounded-lg border border-rose-900/60">
-              {errorMsg}
-            </p>
+            <div className="flex items-start gap-2 text-xs text-rose-300 bg-rose-950/50 p-3 rounded-lg border border-rose-900/60">
+              <AlertCircle size={15} className="text-rose-400 shrink-0 mt-0.5" />
+              <span>{errorMsg}</span>
+            </div>
           )}
 
           {successMsg && (

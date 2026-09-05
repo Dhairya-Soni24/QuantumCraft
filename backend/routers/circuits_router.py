@@ -27,14 +27,18 @@ def ensure_valid_uuid(user_id_str: str) -> str:
 # --- Routes ---
 
 @router.get("/")
-def list_circuits():
-    """Fetch all saved circuits."""
+def list_circuits(user_id: Optional[str] = None):
+    """Fetch saved circuits. Optionally filter by user_id if provided."""
     try:
         supabase = get_supabase()
-        response = supabase.table("saved_circuits").select("*").order("created_at", desc=True).execute()
+        query = supabase.table("saved_circuits").select("*")
+        if user_id:
+            valid_id = ensure_valid_uuid(user_id)
+            query = query.eq("user_id", valid_id)
+        response = query.order("created_at", desc=True).execute()
         return response.data or []
     except Exception as e:
-        print(f"[CircuitsRouter] list_circuits fallback: {e}")
+        print(f"[CircuitsRouter] list_circuits error: {e}")
         return []
 
 @router.get("/{circuit_id}")
@@ -62,31 +66,27 @@ def create_circuit(payload: CircuitCreateRequest):
         try:
             user_check = supabase.table("users").select("id").eq("id", valid_user_id).execute()
             if not user_check.data:
-                supabase.table("users").upsert({
+                supabase.table("users").insert({
                     "id": valid_user_id,
                     "email": f"user_{valid_user_id[:8]}@quantumcraft.dev",
                     "full_name": "Quantum Explorer",
                     "role": "student"
                 }).execute()
         except Exception as u_err:
-            print(f"[CircuitsRouter] User upsert notice: {u_err}")
+            print(f"[CircuitsRouter] User check/insert notice: {u_err}")
 
         data = payload.model_dump(exclude_none=True)
         data["user_id"] = valid_user_id
 
         response = supabase.table("saved_circuits").insert(data).execute()
-        return response.data or [data]
+        if not response.data:
+            raise HTTPException(status_code=500, detail="Supabase insert returned no data")
+        return response.data
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"[CircuitsRouter] Supabase insert offline fallback: {e}")
-        return [{
-            "id": str(uuid.uuid4()),
-            "user_id": valid_user_id,
-            "name": payload.name,
-            "description": payload.description,
-            "canvas_json": payload.canvas_json,
-            "code_snippet": payload.code_snippet,
-            "framework": payload.framework
-        }]
+        print(f"[CircuitsRouter] Supabase insert error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to save circuit to database: {str(e)}")
 
 @router.delete("/{circuit_id}")
 def delete_circuit(circuit_id: str):
@@ -96,4 +96,5 @@ def delete_circuit(circuit_id: str):
         response = supabase.table("saved_circuits").delete().eq("id", circuit_id).execute()
         return {"message": "Circuit deleted successfully", "data": response.data}
     except Exception as e:
-        return {"message": "Circuit deleted locally", "id": circuit_id}
+        print(f"[CircuitsRouter] Delete error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to delete circuit: {str(e)}")

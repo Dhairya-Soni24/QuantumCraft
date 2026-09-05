@@ -768,7 +768,11 @@ export default function Home() {
 
       {/* Modals and Drawers */}
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
-      <SaveCircuitModal isOpen={isSaveOpen} onClose={() => setIsSaveOpen(false)} />
+      <SaveCircuitModal
+        isOpen={isSaveOpen}
+        onClose={() => setIsSaveOpen(false)}
+        onOpenAuth={() => setIsAuthOpen(true)}
+      />
       <MyCircuitsModal isOpen={isMyCircuitsOpen} onClose={() => setIsMyCircuitsOpen(false)} />
       <LessonsDrawer isOpen={isLessonsOpen} onClose={() => setIsLessonsOpen(false)} />
       <ChallengesDrawer isOpen={isChallengesOpen} onClose={() => setIsChallengesOpen(false)} />

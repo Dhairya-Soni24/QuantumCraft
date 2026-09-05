@@ -44,20 +44,15 @@ export const DEFAULT_USER = {
 };
 
 function getInitialUser() {
-  if (typeof window === "undefined") return DEFAULT_USER;
+  if (typeof window === "undefined") return null;
   try {
     const savedStr = localStorage.getItem("quantumcraft_user");
-    if (!savedStr) return DEFAULT_USER;
+    if (!savedStr) return null;
     const parsed = JSON.parse(savedStr);
     const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(parsed?.id || ""));
-    if (!isUuid) {
-      const fixedUser = { ...DEFAULT_USER, ...parsed, id: DEFAULT_USER.id };
-      localStorage.setItem("quantumcraft_user", JSON.stringify(fixedUser));
-      return fixedUser;
-    }
-    return parsed;
+    return isUuid ? parsed : null;
   } catch {
-    return DEFAULT_USER;
+    return null;
   }
 }
 
@@ -68,7 +63,7 @@ const defaultInitialNodes = astToReactFlowNodes(
 );
 
 export const useQuantumStore = create((set, get) => ({
-  currentUser: DEFAULT_USER,
+  currentUser: getInitialUser(),
   nodes: defaultInitialNodes,
   edges: [],
   selectedFramework: "qiskit",
@@ -84,20 +79,19 @@ export const useQuantumStore = create((set, get) => ({
     try {
       const savedStr = localStorage.getItem("quantumcraft_user");
       if (!savedStr) {
-        set({ currentUser: DEFAULT_USER });
+        set({ currentUser: null });
         return;
       }
       const parsed = JSON.parse(savedStr);
       const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(parsed?.id || ""));
       if (!isUuid) {
-        const fixedUser = { ...DEFAULT_USER, ...parsed, id: DEFAULT_USER.id };
-        localStorage.setItem("quantumcraft_user", JSON.stringify(fixedUser));
-        set({ currentUser: fixedUser });
+        localStorage.removeItem("quantumcraft_user");
+        set({ currentUser: null });
         return;
       }
       set({ currentUser: parsed });
     } catch {
-      set({ currentUser: DEFAULT_USER });
+      set({ currentUser: null });
     }
   },
 

@@ -107,7 +107,10 @@ export default function ProfilePage() {
   useEffect(() => {
     let isMounted = true;
     async function loadStats() {
-      if (!currentUser?.id) return;
+      if (!currentUser?.id) {
+        setUserStats(null);
+        return;
+      }
       setIsLoadingStats(true);
       try {
         const res = await getUserStats(currentUser.id);
@@ -127,11 +130,11 @@ export default function ProfilePage() {
     };
   }, [currentUser?.id]);
 
-  const streak = userStats?.current_streak_days ?? 4;
-  const solved = userStats?.challenges_solved_count ?? 2;
-  const ops = userStats?.qubit_operations_count ?? 48;
-  const totalXp = currentUser?.xp || userStats?.total_xp || 450;
-  const completedLessons = userStats?.completed_lessons_count ?? 3;
+  const streak = currentUser ? (userStats?.current_streak_days ?? 0) : 0;
+  const solved = currentUser ? (userStats?.challenges_solved_count ?? 0) : 0;
+  const ops = currentUser ? (userStats?.qubit_operations_count ?? 0) : 0;
+  const totalXp = currentUser ? (currentUser?.xp || userStats?.total_xp || 100) : 0;
+  const completedLessons = currentUser ? (userStats?.completed_lessons_count ?? 0) : 0;
 
   return (
     <div className="flex min-h-screen flex-col bg-[#020617] font-sans antialiased text-slate-100">
@@ -159,15 +162,15 @@ export default function ProfilePage() {
           <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_center,rgba(47,217,244,0.12),transparent_55%)]" />
           <div
             className={`relative flex h-28 w-28 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-tr ${
-              currentUser?.color || "from-cyan-500 to-blue-600"
+              currentUser?.color || "from-slate-700 to-slate-800"
             } text-center font-mono text-3xl font-bold text-white shadow-lg shadow-cyan-500/20`}
           >
-            {currentUser?.avatar || currentUser?.full_name?.slice(0, 2).toUpperCase() || "SD"}
+            {currentUser?.avatar || currentUser?.full_name?.slice(0, 2).toUpperCase() || "GS"}
           </div>
           <div className="relative text-center md:text-left">
             <div className="flex items-center justify-center md:justify-start gap-3">
               <h1 className="text-3xl font-bold tracking-tight text-slate-100 md:text-4xl">
-                {currentUser?.full_name || "Soni Dhairya"}
+                {currentUser?.full_name || "Guest Explorer"}
               </h1>
               <span
                 className={`rounded-full px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${
@@ -175,37 +178,50 @@ export default function ProfilePage() {
                     ? "bg-cyan-950 text-cyan-300 border border-cyan-800/60"
                     : currentUser?.role === "instructor"
                     ? "bg-amber-950 text-amber-300 border border-amber-800/60"
-                    : "bg-purple-950 text-purple-300 border border-purple-800/60"
+                    : currentUser?.role === "student"
+                    ? "bg-purple-950 text-purple-300 border border-purple-800/60"
+                    : "bg-slate-800 text-slate-400 border border-slate-700"
                 }`}
               >
-                {currentUser?.role || "admin"}
+                {currentUser?.role || "Guest"}
               </span>
             </div>
-            <p className="text-sm text-slate-400 mt-1">{currentUser?.email || "dhairya@quantumcraft.dev"}</p>
+            <p className="text-sm text-slate-400 mt-1">
+              {currentUser?.email || "Sign in to persist your quantum algorithms and sync course badges"}
+            </p>
             <div className="mt-3 inline-flex items-center gap-2 rounded-full border border-cyan-500/40 bg-cyan-950/40 px-3.5 py-1 text-xs font-semibold tracking-wide text-cyan-300">
-              <Sparkles size={14} /> Quantum Rank: {currentUser?.badge || "Admin & Lead Researcher"}
+              <Sparkles size={14} /> Quantum Rank: {currentUser?.badge || (currentUser ? "Quantum Explorer" : "Guest Mode")}
             </div>
           </div>
 
           <div className="relative md:ml-auto flex flex-wrap justify-center gap-3">
-            <button
-              onClick={() => setIsEditOpen(true)}
-              className="flex items-center gap-2 rounded-lg border border-cyan-500/50 bg-cyan-950/60 px-4 py-2 text-xs font-semibold text-cyan-300 hover:border-cyan-400 hover:bg-cyan-900/60 transition-all shadow"
-            >
-              <UserCog size={14} /> Edit Profile
-            </button>
-            <button
-              onClick={() => setIsAuthOpen(true)}
-              className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-600 hover:bg-slate-750 transition-all"
-            >
-              <User size={14} /> Switch Account
-            </button>
-            {currentUser && (
+            {currentUser ? (
+              <>
+                <button
+                  onClick={() => setIsEditOpen(true)}
+                  className="flex items-center gap-2 rounded-lg border border-cyan-500/50 bg-cyan-950/60 px-4 py-2 text-xs font-semibold text-cyan-300 hover:border-cyan-400 hover:bg-cyan-900/60 transition-all shadow"
+                >
+                  <UserCog size={14} /> Edit Profile
+                </button>
+                <button
+                  onClick={() => setIsAuthOpen(true)}
+                  className="flex items-center gap-2 rounded-lg border border-slate-700 bg-slate-800 px-4 py-2 text-xs font-semibold text-slate-200 hover:border-slate-600 hover:bg-slate-750 transition-all"
+                >
+                  <User size={14} /> Switch Account
+                </button>
+                <button
+                  onClick={logoutUser}
+                  className="flex items-center gap-2 rounded-lg border border-rose-900/60 bg-rose-950/30 px-4 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-900/50 transition-all"
+                >
+                  <LogOut size={14} /> Logout
+                </button>
+              </>
+            ) : (
               <button
-                onClick={logoutUser}
-                className="flex items-center gap-2 rounded-lg border border-rose-900/60 bg-rose-950/30 px-4 py-2 text-xs font-semibold text-rose-300 hover:bg-rose-900/50 transition-all"
+                onClick={() => setIsAuthOpen(true)}
+                className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-cyan-500 to-purple-600 px-6 py-2.5 text-xs font-bold text-slate-950 shadow-lg shadow-cyan-500/20 hover:opacity-95 transition-all"
               >
-                <LogOut size={14} /> Logout
+                <User size={15} /> Sign In / Register
               </button>
             )}
           </div>
@@ -239,7 +255,7 @@ export default function ProfilePage() {
             label="Total XP Score"
             value={`⚡ ${totalXp} XP`}
             color="text-amber-400"
-            subtitle="Rank Tier Level 2"
+            subtitle={currentUser ? "Active Researcher" : "Sign in to accumulate XP"}
           />
         </section>
 
